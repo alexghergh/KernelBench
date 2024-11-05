@@ -15,7 +15,7 @@ class Model(nn.Module):
         super(Model, self).__init__()
         self.negative_slope = negative_slope
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, input: torch.Tensor, grad_output: torch.Tensor) -> torch.Tensor:
         """
         Applies LeakyReLU activation to the input tensor.
 
@@ -25,14 +25,16 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: Output tensor with LeakyReLU gradient applied, same shape as input.
         """
-        return torch.where(x > 0, 1.0, self.negative_slope)
+        return torch.where(input > 0, 1.0, self.negative_slope)
 
 batch_size = 16
 dim = 16384
 
 def get_inputs():
     x = torch.randn(batch_size, dim)
-    return [x]
+    output = torch.nn.functional.leaky_relu(x) 
+    grad_output = torch.randn_like(output)
+    return [x, grad_output]
 
 def get_init_inputs():
     return []  # No special initialization inputs needed

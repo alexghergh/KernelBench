@@ -8,7 +8,7 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, input: torch.Tensor, grad_output: torch.Tensor) -> torch.Tensor:
         """
         Applies ReLU activation to the input tensor.
 
@@ -18,14 +18,16 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: Output tensor with ReLU gradient applied, same shape as input.
         """
-        return torch.where(x > 0, 1.0, 0.0)
+        return torch.where(input > 0, 1.0, 0.0)
 
 batch_size = 16
 dim = 16384
 
 def get_inputs():
     x = torch.randn(batch_size, dim)
-    return [x]
+    output = torch.nn.functional.relu(x)
+    grad_output = torch.randn_like(output)
+    return [x, grad_output]
 
 def get_init_inputs():
     return []  # No special initialization inputs needed
