@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Backward for level1/41_Max_Pooling_1D.py
+
 class Model(nn.Module):
     """
     Simple model that performs the backward of Max Pooling 1D.
