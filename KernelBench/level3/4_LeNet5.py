@@ -50,7 +50,7 @@ class Model(nn.Module):
         return x
 
 # Test code for the LeNet-5 model
-batch_size = 1
+batch_size = 10
 num_classes = 10
 
 def get_inputs():
