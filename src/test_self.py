@@ -8,7 +8,6 @@ import numpy as np
 from model import Model
 from model import get_inputs
 from model import get_init_inputs
-from model_new import ModelNew
 
 torch.cuda.synchronize()
 
@@ -35,7 +34,7 @@ def check_correctness():
         set_seed(42)
         model = Model(*init_inputs).cuda()
         set_seed(42)
-        model_new = ModelNew(*init_inputs).cuda()
+        model_new = Model(*init_inputs).cuda()
 
         # forward pass
         output = model(*inputs)

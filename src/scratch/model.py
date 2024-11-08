@@ -3,28 +3,32 @@ import torch.nn as nn
 
 class Model(nn.Module):
     """
-    Simple model that performs a convolution, applies ReLU, and adds a bias term.
+    Simple model that performs a matrix multiplication of a diagonal matrix with another matrix.
+    C = diag(A) * B
     """
-    def __init__(self, in_channels, out_channels, kernel_size, bias_shape):
+    def __init__(self):
         super(Model, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
-        self.bias = nn.Parameter(torch.randn(bias_shape)) 
+    
+    def forward(self, A, B):
+        """
+        Performs the matrix multiplication.
 
-    def forward(self, x):
-        x = self.conv(x)
-        x = torch.relu(x)
-        x = x + self.bias
-        return x
+        Args:
+            A (torch.Tensor): A 1D tensor representing the diagonal of the diagonal matrix. Shape: (N,).
+            B (torch.Tensor): A 2D tensor representing the second matrix. Shape: (N, M).
 
-batch_size = 128
-in_channels = 3
-out_channels = 16
-height, width = 32, 32
-kernel_size = 3
-bias_shape = (out_channels, 1, 1)
+        Returns:
+            torch.Tensor: The result of the matrix multiplication. Shape: (N, M).
+        """
+        return torch.diag(A) @ B
+
+M = 4096
+N = 4096
 
 def get_inputs():
-    return [torch.randn(batch_size, in_channels, height, width)]
+    A = torch.randn(N)
+    B = torch.randn(N, M)
+    return [A, B]
 
 def get_init_inputs():
-    return [in_channels, out_channels, kernel_size, bias_shape]
+    return []  # No special initialization inputs needed
