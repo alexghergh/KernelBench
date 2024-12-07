@@ -550,3 +550,51 @@ def maybe_multiprocess_cuda(
                     print("Got an error!", e)
                     continue
     return output_data
+
+
+################################################################################
+# ThunderKitten specific utils
+################################################################################
+
+def create_tk_makefile(kernel_dir: str):
+    """
+    Write a makefile for ThunderKitten (Pybind) to the kernel directory
+
+    TODO: can make this more modular (platform, TK path, different name of kernel, etc.)
+
+    Assume kernel is in file custom_tk.cu, the kernel name is called custom_kernel
+    """
+
+    
+    makefile_content = """# Compiler
+NVCC=nvcc
+# GPU=4090
+GPU=H100
+
+TARGET=tk_kernels
+SRC=custom_tk.cu
+
+NVCCFLAGS=-DNDEBUG -Xcompiler=-fPIE --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler=-Wno-psabi -Xcompiler=-fno-strict-aliasing --use_fast_math -forward-unknown-to-host-compiler -O3 -Xnvlink=--verbose -Xptxas=--verbose -Xptxas=--warn-on-spills -std=c++20 -x cu -lrt -lpthread -ldl -lcuda -lcudadevrt -lcudart_static -lcublas
+NVCCFLAGS+= -I${THUNDERKITTENS_ROOT}/include -I${THUNDERKITTENS_ROOT}/prototype $(shell python3 -m pybind11 --includes) $(shell python3-config --ldflags) -shared -fPIC -lpython3.10
+
+# Conditional setup based on the target GPU
+ifeq ($(GPU),4090)
+\tNVCCFLAGS+= -DKITTENS_4090 -arch=sm_89
+else ifeq ($(GPU),A100)
+\tNVCCFLAGS+= -DKITTENS_A100 -arch=sm_80
+else
+\tNVCCFLAGS+= -DKITTENS_HOPPER -arch=sm_90a
+endif
+
+# Default target
+all: $(TARGET)
+
+$(TARGET): $(SRC)
+\t$(NVCC) $(SRC) $(NVCCFLAGS) -o $(TARGET)$(shell python3-config --extension-suffix)
+
+# Clean target
+clean:
+\trm -f $(TARGET)"""
+
+    with open(os.path.join(kernel_dir, "Makefile"), "w") as f:
+        f.write(makefile_content)
