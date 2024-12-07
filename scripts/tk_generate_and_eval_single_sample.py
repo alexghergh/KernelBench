@@ -9,17 +9,22 @@ from datasets import load_dataset
 
 import shutil
 from src.dataset import construct_kernelbench_dataset
-from src.eval import KernelExecResult, eval_kernel_against_ref
+from src.eval import KernelExecResult, eval_kernel_against_ref, check_metadata_serializable_all_types
 # ThunderKitten specific prompts, edit there!
 from src.prompt_constructor import prompt_generate_custom_thunderkitten_from_prompt_template
 from src.utils import extract_first_code, query_server, set_gpu_arch, read_file, create_inference_server_from_presets, create_tk_makefile
+
 
 """
 Generate and evaluate a single sample
 Easiest way to get started, to test a single problem for experimentation or debugging
 
 
-Speically modiefied for ThunderKitten
+Speically modified for ThunderKitten
+The pipeline is: Construct Prompt -> Inference -> Extract .cu (TK) code + makefile -> Compile + Build -> Evaluate
+
+TODO:
+- Experient with TK Prompt
 """
 
 REPO_TOP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -82,6 +87,18 @@ class EvalConfig(Config):
     def __repr__(self):
         return f"EvalConfig({self.to_dict()})"
 
+def create_compilation_file_kernel_exec_result(error_msg):
+    """
+    Create a KernelExecResult to signal failure for when we fail to compile the kernel
+    """
+    return KernelExecResult(
+        compiled=False,
+        correctness=False,
+        runtime=-1.0,
+        runtime_stats={},
+        metadata={"error": check_metadata_serializable_all_types({"error": error_msg})}
+    )
+
 
 @pydra.main(base=EvalConfig)
 def main(config: EvalConfig):
@@ -114,7 +131,6 @@ def main(config: EvalConfig):
 
     # 1. Fetch Problem
     if config.dataset_src == "huggingface":
-
         curr_problem_row = curr_level_dataset.filter(lambda x: x["problem_id"] == config.problem_id)
         ref_arch_src = curr_problem_row["code"][0]
         problem_name = curr_problem_row["name"][0]
@@ -132,7 +148,23 @@ def main(config: EvalConfig):
     assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
     
     
-    # 2. Generate Sample
+    # 2. Construct Prompt
+    # TODO: @Simran this is where I need your help!!
+    # --
+    # Here is some idea
+    # could we reference simple idea: https://github.com/HazyResearch/ThunderKittens/tree/tk_gen/simple_kernels
+    # I try to turn this into a pybind
+    custom_tk_prompt = prompt_generate_custom_thunderkitten_from_prompt_template(ref_arch_src)
+    if config.log_prompt:
+        with open(os.path.join(config.logdir, f"prompt_level_{config.level}_problem_{config.problem_id}.txt"), "w") as f:
+            f.write(custom_tk_prompt)
+
+    # just for Debug
+    if config.early_terminate:
+        return
+
+
+    # 3. Generate Sample
     # Create inference function with config parameters
     # We provide some presets in utils but you can also pass in your own, see query_server for more details
     inference_server = create_inference_server_from_presets(server_type=config.server_type,
@@ -141,27 +173,13 @@ def main(config: EvalConfig):
                                                         max_tokens=config.max_tokens,
                                                         verbose=config.verbose, 
                                                         time_generation=True)
+
+
     
-
-
-    custom_tk_prompt = prompt_generate_custom_thunderkitten_from_prompt_template(ref_arch_src)
-    if config.log_prompt:
-        with open(os.path.join(config.logdir, f"prompt_level_{config.level}_problem_{config.problem_id}.txt"), "w") as f:
-            f.write(custom_tk_prompt)
-
- 
-    if config.early_terminate:
-        return
-
-
-
-    # TODO: THIS PART FROM NOW ON NEED TK SPECIAL INTEGRATION
-    # THIS PART NEED THUNDERKITTEN SPECIFIC BUILDS
-
-
     # # Query server with constructed prompt
     # custom_cuda = inference_server(custom_tk_prompt)
-    # TODO: here we will need to extract the cu (TK code kernel code) and the module with modified custom code
+    # TODO: @Simon need to figure out a way to extract it from the output response, 
+    # here we will need to extract the cu (TK code kernel code) and the module with modified custom code
     # custom_cuda = extract_first_code(custom_cuda, ["python", "cpp"])
     # # check LLM is able to generate custom CUDA code
     # assert custom_cuda is not None, "Custom CUDA code generation failed"
@@ -171,22 +189,20 @@ def main(config: EvalConfig):
     #     with open(os.path.join(config.logdir, f"generated_kernel_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
     #         f.write(custom_cuda)
 
-    # 3. Evaluate Kernel (TK Specific)
 
+    # 4. Build Kernel (TK Specific)
     kernel_dir = os.path.join(config.kernel_builds_dir, f"level_{config.level}_problem_{config.problem_id}")
 
     if os.path.exists(kernel_dir):
         print(f"Warning: Kernel directory {kernel_dir} already exists. Will overwrite contents.")
         # shutil.rmtree(kernel_dir)
     os.makedirs(kernel_dir, exist_ok=True)
-    
 
     create_tk_makefile(kernel_dir)
 
-
-    # Inside the directory, we should have 3 files, I will name the kernel custom kernel right now!
-    # 1. custom_kernel.cu: the cuda kernel itself
-    # 2. Makefile: the makefile to build the kernel
+    # Inside the directory (kernel_dir), we should have 3 files, the kernel module would be named tk_kernels
+    # 1. custom_tk.cu: the cuda kernel itself (extracted from LLM response)
+    # 2. Makefile: the makefile to build the kernel (fixed for now)
     # 3. .so binary which would only be there if we succesfully build the kerne
 
     if config.clean_kernel_build:
@@ -218,10 +234,21 @@ def main(config: EvalConfig):
             metadata={"error": str(e.stderr)}
         )
         raise RuntimeError("Failed to build kernel")
-        
     
-    # Okay if we make it here, we have compiled and built the TK kernel!
+    # Load in compiled custom kernel module
+    sys.path.append(kernel_dir) # point to the specific binary in the directory
+    try:
+        import tk_kernels # we name all the thunderkitten kernel modules as tk_kernels now!
+        print(f"Imported ThunderKittens Kernel modules at {kernel_dir}: {dir(tk_kernels)}")
+    except ImportError as e:
+        kernel_exec_result = create_compilation_file_kernel_exec_result(f"Failed to import tk_kernels: {e}")
 
+    # import pdb; pdb.set_trace()
+    # If we make it here, we have compiled and built the TK kernel!
+
+
+    # 5. Evaluate the kernel, against original reference
+    # TODO: @Simon need to write a TK specific eval function
     kernel_exec_result = None
 
     # # NOTE: no need to wrap around process here as only a single sample
