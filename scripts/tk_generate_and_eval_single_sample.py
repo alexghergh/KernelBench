@@ -55,11 +55,11 @@ class EvalConfig(Config):
         self.max_tokens = 4096
         self.temperature = 0.0
 
-
         # Build + Evaluation config
         # Construct this from mapping from architecture name to torch cuda arch list in the future
         # you can either specify SM version or just use the name
         self.gpu_arch = ["Hopper"]
+
 
         # For ThunderKitten, we need to build the Kernel locally binary (not inline cuda)
         # let's specify where to write and build the kernels
@@ -75,7 +75,8 @@ class EvalConfig(Config):
         self.log_generated_kernel = False
         self.log_eval_result = False
 
-        self.early_terminate = False # for debugging
+        self.stop_before_eval = False # for debugging
+        self.skip_generation = False # for debugging
         
 
     def verbose_logging(self):
@@ -115,6 +116,8 @@ def main(config: EvalConfig):
     elif config.dataset_src == "local":
         curr_level_dataset = construct_kernelbench_dataset(config.level)
 
+    assert os.environ.get("THUNDERKITTENS_ROOT"), "THUNDERKITTENS_ROOT environment variable is not set, please run source env.src in the ThunderKitten repo"
+    
     if config.gpu_arch:
         set_gpu_arch(config.gpu_arch)  # otherwise build for all architectures
 
@@ -151,7 +154,7 @@ def main(config: EvalConfig):
 
     # For now: let's hardcode and use the toy problem as an example
     ref_arch_src = read_file(os.path.join(REPO_TOP_DIR, "src/tk_prompts/toy_problem.py"))
-
+    problem_name = "TOY SUB PROBLEM"# toy problem
     
     # 2. Construct Prompt
     # TODO: @Simran this is where I need your help!!
@@ -178,30 +181,29 @@ def main(config: EvalConfig):
 
 
     
+    if not config.skip_generation:
+        # # Query server with constructed prompt
+        inference_result = inference_server(custom_tk_prompt)
 
-    # # Query server with constructed prompt
-    inference_result = inference_server(custom_tk_prompt)
+        # here we will need to extract the cu (TK code kernel code) and the module with modified custom code
+        kernel_code = extract_code_blocks_of_type(inference_result, "cpp")
+        new_model_code = extract_code_blocks_of_type(inference_result, "python")
 
-    # here we will need to extract the cu (TK code kernel code) and the module with modified custom code
-    kernel_code = extract_code_blocks_of_type(inference_result, "cpp")
-    new_model_code = extract_code_blocks_of_type(inference_result, "python")
-
-    
-    assert kernel_code is not None, "Custom TK kernel generation failed"
-    assert new_model_code is not None, "Custom Model code generation failed"
-    
-    # this should be optional
-    if config.log:
-        with open(os.path.join(config.logdir, f"inference_result_kernel_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
-            f.write(inference_result)
-        with open(os.path.join(config.logdir, f"kernel_code_level_{config.level}_problem_{config.problem_id}.cu"), "w") as f:
-            f.write(kernel_code)
-        with open(os.path.join(config.logdir, f"new_model_code_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
-            f.write(new_model_code)
+        
+        assert kernel_code is not None, "Custom TK kernel generation failed"
+        assert new_model_code is not None, "Custom Model code generation failed"
+        
+        if config.log:
+            with open(os.path.join(config.logdir, f"inference_result_kernel_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
+                f.write(inference_result)
+            with open(os.path.join(config.logdir, f"kernel_code_level_{config.level}_problem_{config.problem_id}.cu"), "w") as f:
+                f.write(kernel_code)
+            with open(os.path.join(config.logdir, f"new_model_code_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
+                f.write(new_model_code)
 
 
     # just for Debug, do not go pass here to build the kernel
-    if config.early_terminate:
+    if config.stop_before_eval:
         return
     
     # 4. Build Kernel (TK Specific)
@@ -212,11 +214,11 @@ def main(config: EvalConfig):
         # shutil.rmtree(kernel_dir)
     os.makedirs(kernel_dir, exist_ok=True)
 
-
-    # Inside the directory (kernel_dir), we should have 3 files, the kernel module would be named tk_kernels
-    # 1. custom_tk.cu: the cuda kernel itself (extracted from LLM response)
-    with open(os.path.join(kernel_dir, "custom_tk.cu"), "w") as f:
-        f.write(kernel_code)
+    if not config.skip_generation:
+        # Inside the directory (kernel_dir), we should have 3 files, the kernel module would be named tk_kernels
+        # 1. custom_tk.cu: the cuda kernel itself (extracted from LLM response)
+        with open(os.path.join(kernel_dir, "custom_tk.cu"), "w") as f:
+            f.write(kernel_code)
     
     # 2. Makefile: the makefile to build the kernel (fixed for now)
     create_tk_makefile(kernel_dir)
@@ -259,9 +261,9 @@ def main(config: EvalConfig):
         import tk_kernels # we name all the thunderkitten kernel modules as tk_kernels now!
         print(f"Imported ThunderKittens Kernel modules at {kernel_dir}: {dir(tk_kernels)}")
     except ImportError as e:
+        print(f"Failed to import tk_kernels: {e}")
         kernel_exec_result = create_compilation_file_kernel_exec_result(f"Failed to import tk_kernels: {e}")
 
-    # import pdb; pdb.set_trace()
     # If we make it here, we have compiled and built the TK kernel!
 
 
@@ -271,9 +273,13 @@ def main(config: EvalConfig):
 
     # # NOTE: no need to wrap around process here as only a single sample
     # # see batch eval for examples of process isolation
-    # kernel_exec_result = eval_kernel_against_ref(
-    #     ref_arch_src, custom_cuda, verbose=config.verbose, measure_performance=True, num_correct_trials=5, num_perf_trials=100
-    # )
+
+    if config.skip_generation:
+        new_model_code = read_file(os.path.join(config.logdir, f"new_model_code_level_{config.level}_problem_{config.problem_id}.py"))  
+
+    kernel_exec_result = eval_kernel_against_ref(
+        ref_arch_src, new_model_code, verbose=config.verbose, measure_performance=True, num_correct_trials=5, num_perf_trials=100, kernel_dir=kernel_dir
+    )
     
     print(f"Evaluation result for level {config.level} problem {config.problem_id}:\n{kernel_exec_result}")
 

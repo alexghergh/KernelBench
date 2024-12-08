@@ -66,9 +66,9 @@ void dispatch_micro(micro_globals g) {
     cudaDeviceSynchronize();
 }
 
-
-PYBIND11_MODULE(simple_tk, m) {
-    m.doc() = "simple_tk python module";
+// the module to build will be called tk_kernels
+PYBIND11_MODULE(tk_kernels, m) {
+    m.doc() = "tk_kernels python module";
     // For wrapping kernels directly.
     BIND_KERNEL(m, "micro_tk", micro_tk, micro_globals, x, o); 
     // For host functions that wrap the kernel, this will be called from Python
