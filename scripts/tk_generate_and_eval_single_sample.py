@@ -12,7 +12,7 @@ from src.dataset import construct_kernelbench_dataset
 from src.eval import KernelExecResult, eval_kernel_against_ref, check_metadata_serializable_all_types
 # ThunderKitten specific prompts, edit there!
 from src.prompt_constructor import prompt_generate_custom_thunderkitten_from_prompt_template
-from src.utils import extract_first_code, query_server, set_gpu_arch, read_file, create_inference_server_from_presets, create_tk_makefile
+from src.utils import extract_code_blocks, extract_code_blocks_of_type, extract_first_code, query_server, set_gpu_arch, read_file, create_inference_server_from_presets, create_tk_makefile
 
 
 """
@@ -75,7 +75,7 @@ class EvalConfig(Config):
         self.log_generated_kernel = False
         self.log_eval_result = False
 
-        self.early_terminate = False # for debugging        
+        self.early_terminate = False # for debugging
         
 
     def verbose_logging(self):
@@ -129,24 +129,29 @@ def main(config: EvalConfig):
     assert config.problem_id <= num_problems, f"Problem ID {config.problem_id} out of range for Level {config.level}"
 
 
-    # 1. Fetch Problem
-    if config.dataset_src == "huggingface":
-        curr_problem_row = curr_level_dataset.filter(lambda x: x["problem_id"] == config.problem_id)
-        ref_arch_src = curr_problem_row["code"][0]
-        problem_name = curr_problem_row["name"][0]
+    # # 1. Fetch Problem
+    # if config.dataset_src == "huggingface":
+    #     curr_problem_row = curr_level_dataset.filter(lambda x: x["problem_id"] == config.problem_id)
+    #     ref_arch_src = curr_problem_row["code"][0]
+    #     problem_name = curr_problem_row["name"][0]
 
-    elif config.dataset_src == "local":
-        problem_idx_in_dataset = config.problem_id - 1 # due to dataset list being 0-indexed locally
-        ref_arch_path = curr_level_dataset[problem_idx_in_dataset]
+    # elif config.dataset_src == "local":
+    #     problem_idx_in_dataset = config.problem_id - 1 # due to dataset list being 0-indexed locally
+    #     ref_arch_path = curr_level_dataset[problem_idx_in_dataset]
 
-        problem_name = os.path.basename(ref_arch_path)
-        ref_arch_src = read_file(ref_arch_path)
-    # import pdb; pdb.set_trace()
+    #     problem_name = os.path.basename(ref_arch_path)
+    #     ref_arch_src = read_file(ref_arch_path)
 
-    # Extract problem number from problem name (e.g. "1" from "1_Square_matrix_multiplication_.py")
-    problem_number = int(problem_name.split("_")[0])
-    assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
+
+
+    # # Extract problem number from problem name (e.g. "1" from "1_Square_matrix_multiplication_.py")
+    # problem_number = int(problem_name.split("_")[0])
+    # assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
     
+
+    # For now: let's hardcode and use the toy problem as an example
+    ref_arch_src = read_file(os.path.join(REPO_TOP_DIR, "src/tk_prompts/toy_problem.py"))
+
     
     # 2. Construct Prompt
     # TODO: @Simran this is where I need your help!!
@@ -159,10 +164,7 @@ def main(config: EvalConfig):
         with open(os.path.join(config.logdir, f"prompt_level_{config.level}_problem_{config.problem_id}.txt"), "w") as f:
             f.write(custom_tk_prompt)
 
-    # just for Debug
-    if config.early_terminate:
-        return
-
+ 
 
     # 3. Generate Sample
     # Create inference function with config parameters
@@ -176,20 +178,32 @@ def main(config: EvalConfig):
 
 
     
+
     # # Query server with constructed prompt
-    # custom_cuda = inference_server(custom_tk_prompt)
-    # TODO: @Simon need to figure out a way to extract it from the output response, 
+    inference_result = inference_server(custom_tk_prompt)
+
     # here we will need to extract the cu (TK code kernel code) and the module with modified custom code
-    # custom_cuda = extract_first_code(custom_cuda, ["python", "cpp"])
-    # # check LLM is able to generate custom CUDA code
-    # assert custom_cuda is not None, "Custom CUDA code generation failed"
+    kernel_code = extract_code_blocks_of_type(inference_result, "cpp")
+    new_model_code = extract_code_blocks_of_type(inference_result, "python")
+
     
-    # # this should be optional
-    # if config.log:
-    #     with open(os.path.join(config.logdir, f"generated_kernel_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
-    #         f.write(custom_cuda)
+    assert kernel_code is not None, "Custom TK kernel generation failed"
+    assert new_model_code is not None, "Custom Model code generation failed"
+    
+    # this should be optional
+    if config.log:
+        with open(os.path.join(config.logdir, f"inference_result_kernel_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
+            f.write(inference_result)
+        with open(os.path.join(config.logdir, f"kernel_code_level_{config.level}_problem_{config.problem_id}.cu"), "w") as f:
+            f.write(kernel_code)
+        with open(os.path.join(config.logdir, f"new_model_code_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
+            f.write(new_model_code)
 
 
+    # just for Debug, do not go pass here to build the kernel
+    if config.early_terminate:
+        return
+    
     # 4. Build Kernel (TK Specific)
     kernel_dir = os.path.join(config.kernel_builds_dir, f"level_{config.level}_problem_{config.problem_id}")
 
@@ -198,11 +212,15 @@ def main(config: EvalConfig):
         # shutil.rmtree(kernel_dir)
     os.makedirs(kernel_dir, exist_ok=True)
 
-    create_tk_makefile(kernel_dir)
 
     # Inside the directory (kernel_dir), we should have 3 files, the kernel module would be named tk_kernels
     # 1. custom_tk.cu: the cuda kernel itself (extracted from LLM response)
+    with open(os.path.join(kernel_dir, "custom_tk.cu"), "w") as f:
+        f.write(kernel_code)
+    
     # 2. Makefile: the makefile to build the kernel (fixed for now)
+    create_tk_makefile(kernel_dir)
+
     # 3. .so binary which would only be there if we succesfully build the kerne
 
     if config.clean_kernel_build:

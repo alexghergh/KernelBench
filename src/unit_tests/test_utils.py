@@ -1,6 +1,6 @@
 import pytest # noqa    
  
-from src.utils import extract_first_code, extract_code_blocks, extract_last_code
+from src.utils import extract_code_blocks_of_type, extract_first_code, extract_code_blocks, extract_last_code
 
 def check_code_assertions(code: str, expected_code: str):
     """
@@ -108,3 +108,21 @@ def test_extract_code_blocks():
     code = extract_code_blocks(text, ["python", "cpp"])
     check_code_assertions(code, "def hello():\n    print(\"Hello\") \n int main() { \n return 0; \n }")
 
+
+def test_extract_code_blocks_of_type():
+    text = """```python
+    def hello():
+        print("Hello")
+    ```
+
+    ```cpp
+    int main() {
+        return 0;
+    }
+    ``` 
+    """
+    python_code = extract_code_blocks_of_type(text, "python")
+    check_code_assertions(python_code, "def hello():\n    print(\"Hello\")")
+
+    cuda_code = extract_code_blocks_of_type(text, "cpp")
+    check_code_assertions(cuda_code, "int main() { \n return 0; \n }")

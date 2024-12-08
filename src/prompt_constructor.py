@@ -184,30 +184,44 @@ def prompt_generate_custom_cuda_from_prompt_template(ref_arch_src: str) -> str:
 # ThunderKitten Prompt
 ############################################
 
-PROBLEM_TK_STATEMENT = """You write custom ThunderKitten kernels to replace the pytorch operators in the given architecture to get speedups. \n
-    You have complete freedom to choose the set of operators you want to replace. You may make the decision to replace some operators with custom ThunderKitten kernels and leave others unchanged. You may replace multiple operators with custom implementations, consider operator fusion opportunities (combining multiple operators into a single kernel, for example, combining matmul+relu), or algorithmic changes (such as online softmax). You are only limited by your imagination.\n
+PROBLEM_TK_STATEMENT = """You write custom ThunderKitten kernels to replace the PyTorch operators in the given architecture to get speedups. \n
+    ThunderKitten provides tile primitives to write CUDA Kernels for GPUs. You can make the decision to replace some operators in the given Torch architecture with custom ThunderKitten kernels and leave others unchanged.\n
 """
+
 PROBLEM_TK_INSTRUCTION = """
-Optimize the architecture named Model with custom ThunderKitten operators! Name your optimized output architecture ModelNew. Output the new code in codeblocks. Please generate real code, NOT pseudocode, make sure the code compiles and is fully functional. Just output the new model code, no other text, and NO testing code! \n
+Optimize the architecture named Model with custom ThunderKitten operators! Please output two piece of code wrapped in 2 codeblocks: 
+1. ThunderKitten Kernel in .cu. Wrap this in ```cpp and ```
+2. Optimized Torch Architecture in .py. It should have imports simple_tk at the top and uses the replaced ThunderKitten kernels. Name your optimized output architecture ModelNew. Just output the new model code, no other text, and NO testing code! Wrap this in ```python and ```
+
+Please generate real code, NOT pseudocode, make sure the code compiles and is fully functional.  \n
 """
 
 
 def prompt_generate_custom_thunderkitten(
-    arc_src: str, example_arch_src: str, example_new_arch_src: str
+    arc_src: str, 
+    example_arch_src: str, 
+    example_new_arch_src: str, 
+    example_new_kernel_src: str, 
+    tk_knowledge: str
 ) -> str:
     # NOTE: Maybe replace this with TK MegaPrompt with some TK knoweldge.
     prompt = PROBLEM_TK_STATEMENT
 
     if example_arch_src != "" and example_new_arch_src != "":
         prompt += f"""
-        Here's an example to show you the syntax of inline embedding custom ThunderKitten operators in torch: The example given architecture is: \n
+        Here's an example to show you how to write and use ThunderKitten kernel for an example problem: The example given PyTorch architecture to optimize is: \n
         ``` \n
         {example_arch_src}
         ``` \n
-        The example new arch with custom CUDA kernels looks like this: 
+        The example new ThunderKitten kernel looks like this: 
+        ```
+        {example_new_kernel_src}
+        ``` \n
+        The example new PyTorch architecture calling custom ThunderKitten kernels looks like this: 
         ```
         {example_new_arch_src}
         ``` \n
+        
         """
 
     prompt += f"""
@@ -226,30 +240,28 @@ def prompt_generate_custom_thunderkitten_from_prompt_template(ref_arch_src: str)
     Using prompt example (an element-wise addition) for prompt templates
     The most basic form of example just to show LLM the task and the expected output format
     """
-    arch = ref_arch_src
+    arch = ref_arch_src # this is the problem to
     # These are strictly defined for now
 
     # path to prompt template, show an example of Model (torch specifications) and ModelNew (torch + custom CUDA kernels)
     example_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/prompts/model_ex_tk.py"
+        REPO_TOP_PATH, f"src/tk_prompts/model_ref_ex_add.py"
     )
     example_new_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/prompts/model_new_ex_tk.py"
+        REPO_TOP_PATH, f"src/tk_prompts/model_new_ex_add.py"
+    )
+    example_new_kernel_path = os.path.join(
+        REPO_TOP_PATH, f"src/tk_prompts/kernel_new_ex_add.cu"
     )
 
-    if not os.path.exists(example_arch_path):
-        raise FileNotFoundError(
-            f"Example architecture file not found: {example_arch_path}"
-        )
-    if not os.path.exists(example_new_arch_path):
-        raise FileNotFoundError(
-            f"Example new architecture file not found: {example_new_arch_path}"
-        )
+    tk_knowledge_path = os.path.join(REPO_TOP_PATH, "src/tk_prompts/tk_knowledge.txt")
 
     example_arch = read_file(example_arch_path)
     example_new_arch = read_file(example_new_arch_path)
+    example_new_kernel = read_file(example_new_kernel_path)
+    tk_knowledge = read_file(tk_knowledge_path)
 
-    return prompt_generate_custom_thunderkitten(arch, example_arch, example_new_arch)
+    return prompt_generate_custom_thunderkitten(arch, example_arch, example_new_arch, example_new_kernel, tk_knowledge)
 
 
 

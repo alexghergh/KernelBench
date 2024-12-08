@@ -474,6 +474,16 @@ def extract_code_blocks(text, code_language_types: list[str]) -> str:
     
     return " \n ".join(combined_code) if combined_code else ""
 
+def extract_code_blocks_of_type(text, code_language_type: str) -> str:
+    '''
+    Extract code blocks with specific language type from text, combine them to return as a single string
+    '''
+    pattern = f"```{code_language_type}\n(.*?)```"
+    matches = re.findall(pattern, text, re.DOTALL)
+    
+    # Join all matched code blocks with newlines and strip whitespace
+    return "\n".join(match.strip() for match in matches)
+
 ################################################################################
 # Scale up experiments in parallel
 ################################################################################
