@@ -20,10 +20,8 @@ class Model(nn.Module):
         input: x, y is bfloat16
         output: o is float32 (output accumulator)
         """
-        return x + y
-
-    o = torch.matmul(x, y.transpose(-2, -1)).to(torch.float32)
-    return o
+        o = torch.matmul(x, y.transpose(-2, -1)).to(OUTPUT_DYPE)
+        return o
 
 def get_inputs():
     # randomly generate input tensors based on the model architecture

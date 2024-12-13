@@ -201,9 +201,6 @@ def main(config: EvalConfig):
                 f.write(new_model_code)
 
 
-    # just for Debug, do not go pass here to build the kernel
-    if config.stop_before_eval:
-        return
     
     # 4. Build Kernel (TK Specific)
     kernel_dir = os.path.join(config.kernel_builds_dir, f"level_{config.level}_problem_{config.problem_id}")
@@ -223,6 +220,10 @@ def main(config: EvalConfig):
     create_tk_makefile(kernel_dir)
 
     # 3. .so binary which would only be there if we succesfully build the kerne
+
+    # just for Debug, do not go pass here to build the kernel
+    if config.stop_before_eval:
+        return
 
     if config.clean_kernel_build:
         # Clean any existing .so files in kernel directory

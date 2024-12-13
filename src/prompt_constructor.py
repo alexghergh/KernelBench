@@ -191,7 +191,7 @@ PROBLEM_TK_STATEMENT = """You write custom ThunderKitten kernels to replace the 
 PROBLEM_TK_INSTRUCTION = """
 Optimize the architecture named Model with custom ThunderKitten operators! Please output two piece of code wrapped in 2 codeblocks: 
 1. ThunderKitten Kernel in .cu. Wrap this in ```cpp and ```
-2. Optimized Torch Architecture in .py. It should have imports simple_tk at the top and uses the replaced ThunderKitten kernels. Name your optimized output architecture ModelNew. Just output the new model code, no other text, and NO testing code! Wrap this in ```python and ```
+2. Optimized Torch Architecture in .py. It should have imports tk_kernels at the top and uses the replaced ThunderKitten kernels. Name your optimized output architecture ModelNew. Just output the new model code, no other text, and NO testing code! Wrap this in ```python and ```
 
 Please generate real code, NOT pseudocode, make sure the code compiles and is fully functional.  \n
 """
