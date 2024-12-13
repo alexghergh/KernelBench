@@ -109,7 +109,6 @@ def main(config: EvalConfig):
     print(f"Starting Eval with config: {config}")
 
     # Configurations
-
     if config.dataset_src == "huggingface":
         dataset = load_dataset(config.dataset_name)
         curr_level_dataset = dataset[f"level_{config.level}"]
@@ -138,23 +137,24 @@ def main(config: EvalConfig):
     #     ref_arch_src = curr_problem_row["code"][0]
     #     problem_name = curr_problem_row["name"][0]
 
-    # elif config.dataset_src == "local":
-    #     problem_idx_in_dataset = config.problem_id - 1 # due to dataset list being 0-indexed locally
-    #     ref_arch_path = curr_level_dataset[problem_idx_in_dataset]
+    assert config.dataset_src == "local", "Only local dataset is supported for ThunderKitten"
+    if config.dataset_src == "local":
+        problem_idx_in_dataset = config.problem_id - 1 # due to dataset list being 0-indexed locally
+        ref_arch_path = curr_level_dataset[problem_idx_in_dataset]
 
-    #     problem_name = os.path.basename(ref_arch_path)
-    #     ref_arch_src = read_file(ref_arch_path)
+        problem_name = os.path.basename(ref_arch_path)
+        ref_arch_src = read_file(ref_arch_path)
 
+        
 
-
-    # # Extract problem number from problem name (e.g. "1" from "1_Square_matrix_multiplication_.py")
-    # problem_number = int(problem_name.split("_")[0])
-    # assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
+    # Extract problem number from problem name (e.g. "1" from "1_Square_matrix_multiplication_.py")
+    problem_number = int(problem_name.split("_")[0])
+    assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
     
 
     # For now: let's hardcode and use the toy problem as an example
-    ref_arch_src = read_file(os.path.join(REPO_TOP_DIR, "src/tk_prompts/toy_problem.py"))
-    problem_name = "TOY SUB PROBLEM"# toy problem
+    # ref_arch_src = read_file(os.path.join(REPO_TOP_DIR, "src/tk_prompts/toy_problem.py"))
+    # problem_name = "TOY SUB PROBLEM"# toy problem
     
     # 2. Construct Prompt
     # TODO: @Simran this is where I need your help!!
@@ -168,7 +168,6 @@ def main(config: EvalConfig):
             f.write(custom_tk_prompt)
 
  
-
     # 3. Generate Sample
     # Create inference function with config parameters
     # We provide some presets in utils but you can also pass in your own, see query_server for more details

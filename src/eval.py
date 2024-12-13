@@ -5,7 +5,7 @@ Helpers for Evaluations
 import requests
 import torch
 import torch.nn as nn
-import os
+import os, sys
 from pydantic import BaseModel
 import numpy as np
 import random
@@ -215,7 +215,8 @@ def eval_kernel_against_ref(
     verbose: bool = False,
     measure_performance: bool = False,
     build_dir: os.PathLike = None,
-    device: torch.device = torch.cuda.current_device() if torch.cuda.is_available() else None, # have to run on GPU
+    device: torch.device = torch.cuda.current_device() if torch.cuda.is_available() else None, # have to run on GP
+    kernel_dir: os.PathLike = None,  # For ThunderKittens
 ) -> KernelExecResult:
     """
     Evaluate the custom kernel against the original model
@@ -224,6 +225,14 @@ def eval_kernel_against_ref(
     num_perf_trials: run the evalutation many times to take the average
     device: GPU (cuda) device to run the evalutation on
     """
+
+    if kernel_dir:
+        print(f"Appending kernel dir: {kernel_dir} to sys.path")
+        sys.path.append(kernel_dir)
+        import tk_kernels # we name all the thunderkitten kernel modules as tk_kernels now!
+
+
+
     # TODO: check device is busy
     assert torch.cuda.is_available(), "CUDA is not available, cannot run Eval"
     torch.set_printoptions(

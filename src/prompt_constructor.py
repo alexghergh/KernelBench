@@ -245,13 +245,13 @@ def prompt_generate_custom_thunderkitten_from_prompt_template(ref_arch_src: str)
 
     # path to prompt template, show an example of Model (torch specifications) and ModelNew (torch + custom CUDA kernels)
     example_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/tk_prompts/model_ref_ex_add.py"
+        REPO_TOP_PATH, f"src/tk_prompts/model_ref_ex_mul.py"
     )
     example_new_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/tk_prompts/model_new_ex_add.py"
+        REPO_TOP_PATH, f"src/tk_prompts/model_new_ex_mul.py"
     )
     example_new_kernel_path = os.path.join(
-        REPO_TOP_PATH, f"src/tk_prompts/kernel_new_ex_add.cu"
+        REPO_TOP_PATH, f"src/tk_prompts/kernel_new_ex_mul.cu"
     )
 
     tk_knowledge_path = os.path.join(REPO_TOP_PATH, "src/tk_prompts/tk_knowledge.txt")
