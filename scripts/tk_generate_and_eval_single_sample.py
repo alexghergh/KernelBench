@@ -16,7 +16,7 @@ from src.utils import extract_code_blocks, extract_code_blocks_of_type, extract_
 
 
 """
-Generate and evaluate a single sample
+Generate and evaluate (MAYBE HOLD OFF ON THIS) a single sample
 Easiest way to get started, to test a single problem for experimentation or debugging
 
 
@@ -25,6 +25,7 @@ The pipeline is: Construct Prompt -> Inference -> Extract .cu (TK) code + makefi
 
 TODO:
 - Experient with TK Prompt
+- Easier to separate generation vs evaluation
 """
 
 REPO_TOP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -279,6 +280,7 @@ def main(config: EvalConfig):
         return
     
 
+    # LET ME PUT THIS IN ANOTHER FILE RIGHT NOW
     ############################################################
     # TODO REGION
     # 5. Evaluate the kernel, against original reference
