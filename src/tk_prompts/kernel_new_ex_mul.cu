@@ -2,12 +2,12 @@
 #include "pyutils/pyutils.cuh"
 using namespace kittens;
 
-#define NUM_WORKERS (1) // use 1 warp for this example
+#define NUM_WORKERS (1) // Please keep this to 1 for now
 #define NUM_THREADS (NUM_WORKERS * kittens::WARP_THREADS)  // number of threads is num_workers * num_threads_per_worker (32)
 
 // MODEL TODO: SET DIMENSIONS OF INPUTS
-#define _row 16 // rows per input matrix x
-#define _col 16 // columns per input matrix x
+#define M 16 // rows per input matrix x
+#define N 16 // columns per input matrix x
 
 /* 
 MODEL TODO: DEFINE GLOBAL MEMORY DESCRIPTORS
@@ -16,8 +16,8 @@ bf16: indicates the data type
 dimmensions: {batch, head, depth, width} for global tensors (-1 means runtime dimension, non-negative means compile-time dimension)
 st: when loading from global tensor at some {b, h, d, w} index, this is the shape of the tile that will be loaded to shared memory
 */
-using x_gl  = gl<bf16, -1, -1, -1, -1,  st<bf16, _row, _col>>;  // input is bfloat16
-using o_gl  = gl<float, -1, -1, -1, -1, st<float, _row, _row>>; // output is float32
+using x_gl  = gl<bf16, -1, -1, -1, -1,  st<bf16, M, N>>;  // input is bfloat16
+using o_gl  = gl<float, -1, -1, -1, -1, st<float, M, M>>; // output is float32
 
 /*
 CREATE GLOBAL MEMORY DESCRIPTORS
@@ -51,14 +51,18 @@ void micro_tk(const __grid_constant__ micro_globals g) {
     // shared memory
     extern __shared__ alignment_dummy __shm[];
     shared_allocator al((int*)&__shm[0]);
-    st_bf<_row, _col> (&x_s) = al.allocate<st_bf<_row, _col>>(); // bf16 tiles
-    st_bf<_row, _col> (&y_s) = al.allocate<st_bf<_row, _col>>(); // bf16 tiles
-    st_fl<_row, _row> (&o_s) = al.allocate<st_fl<_row, _row>>(); // float tiles
+
+    // inputs should be in bf16, outputs should be in float
+    // tiles can be in row or col layout
+    st<bf16, M, N, ducks::rt_layout::row> (&x_s) = al.allocate<st<bf16, M, N, ducks::rt_layout::row>>(); // bf16 tiles
+    st<bf16, M, N, ducks::rt_layout::row> (&y_s) = al.allocate<st<bf16, M, N, ducks::rt_layout::row>>(); // bf16 tiles
+    st<float, M, M, ducks::rt_layout::row> (&o_s) = al.allocate<st<float, M, M, ducks::rt_layout::row>>(); // float tiles
 
     // register memory
-    rt_bf<_row, _col> x_reg; // bf16 register
-    rt_bf<_row, _col> y_reg; // bf16 register
-    rt_fl <_row, _row> accum_tile;  
+    // inputs should be in bf16, outputs should be in float
+    rt<bf16, M, N, ducks::rt_layout::row> x_reg; // bf16 register
+    rt<bf16, M,N, ducks::rt_layout::row> y_reg; // bf16 register
+    rt<float, M, M, ducks::rt_layout::row> accum_tile;  // float register
     zero(accum_tile);
 
     // load from HBM to shared
@@ -72,6 +76,7 @@ void micro_tk(const __grid_constant__ micro_globals g) {
     __syncthreads();
 
     // now do the matmul and accumulate to accum_tile
+    // you can use mma_ABt, mma_AtB, mma_AB, mma_AtBt
     mma_ABt(accum_tile, x_reg, y_reg, accum_tile); // o = torch.matmul(x, x.transpose(1, 2))
     __syncthreads();
 

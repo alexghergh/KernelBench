@@ -52,6 +52,9 @@ class EvalConfig(Config):
         # Inference config
         self.server_type = "deepseek"
         self.model_name = "deepseek-coder"
+
+        # self.server_type = "anthropic"
+        # self.model_name = "claude-3-5-sonnet-latest"
         self.max_tokens = 4096
         self.temperature = 0.0
 
@@ -138,23 +141,23 @@ def main(config: EvalConfig):
     #     problem_name = curr_problem_row["name"][0]
 
     assert config.dataset_src == "local", "Only local dataset is supported for ThunderKitten"
-    if config.dataset_src == "local":
-        problem_idx_in_dataset = config.problem_id - 1 # due to dataset list being 0-indexed locally
-        ref_arch_path = curr_level_dataset[problem_idx_in_dataset]
+    # if config.dataset_src == "local":
+    #     problem_idx_in_dataset = config.problem_id - 1 # due to dataset list being 0-indexed locally
+    #     ref_arch_path = curr_level_dataset[problem_idx_in_dataset]
 
-        problem_name = os.path.basename(ref_arch_path)
-        ref_arch_src = read_file(ref_arch_path)
+    #     problem_name = os.path.basename(ref_arch_path)
+    #     ref_arch_src = read_file(ref_arch_path)
 
         
 
     # Extract problem number from problem name (e.g. "1" from "1_Square_matrix_multiplication_.py")
-    problem_number = int(problem_name.split("_")[0])
-    assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
+    # problem_number = int(problem_name.split("_")[0])
+    # assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
     
 
     # For now: let's hardcode and use the toy problem as an example
-    # ref_arch_src = read_file(os.path.join(REPO_TOP_DIR, "src/tk_prompts/toy_problem.py"))
-    # problem_name = "TOY SUB PROBLEM"# toy problem
+    ref_arch_src = read_file(os.path.join(REPO_TOP_DIR, "KernelBench/tk/9_Tall_skinny_matrix_multiplication_.py"))
+    problem_name = "TOY SUB PROBLEM"# toy problem
     
     # 2. Construct Prompt
     # TODO: @Simran this is where I need your help!!
@@ -221,9 +224,6 @@ def main(config: EvalConfig):
 
     # 3. .so binary which would only be there if we succesfully build the kerne
 
-    # just for Debug, do not go pass here to build the kernel
-    if config.stop_before_eval:
-        return
 
     if config.clean_kernel_build:
         # Clean any existing .so files in kernel directory
@@ -267,6 +267,13 @@ def main(config: EvalConfig):
     # If we make it here, we have compiled and built the TK kernel!
 
 
+    # just for Debug, do not go pass here to build the kernel
+    if config.stop_before_eval:
+        return
+    
+
+    ############################################################
+    # TODO REGION
     # 5. Evaluate the kernel, against original reference
     # TODO: @Simon need to write a TK specific eval function
     kernel_exec_result = None
