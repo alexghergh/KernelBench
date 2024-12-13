@@ -202,7 +202,10 @@ def prompt_generate_custom_thunderkitten(
     example_arch_src: str, 
     example_new_arch_src: str, 
     example_new_kernel_src: str, 
-    tk_knowledge: str
+    example_arch_src_1: str = None, 
+    example_new_arch_src_1: str = None, 
+    example_new_kernel_src_1: str = None, 
+    tk_knowledge: str = None
 ) -> str:
     # NOTE: Maybe replace this with TK MegaPrompt with some TK knoweldge.
     prompt = PROBLEM_TK_STATEMENT
@@ -222,6 +225,22 @@ def prompt_generate_custom_thunderkitten(
         {example_new_arch_src}
         ``` \n
         
+        """
+
+    if example_arch_src_1 != "" and example_new_arch_src_1 != "":
+        prompt += f"""
+        Here's another example to show you how to write and use ThunderKitten kernel for an example problem: The example given PyTorch architecture to optimize is: \n
+        ``` \n
+        {example_arch_src_1}
+        ``` \n
+        The example new ThunderKitten kernel looks like this: 
+        ```
+        {example_new_kernel_src_1}
+        ``` \n
+        The example new PyTorch architecture calling custom ThunderKitten kernels looks like this: 
+        ```
+        {example_new_arch_src_1}
+        ``` \n
         """
 
     prompt += f"""
