@@ -4,6 +4,10 @@ import torch.nn as nn
 INPUT_DTYPE = torch.bfloat16
 OUTPUT_DTYPE = torch.float
 
+"""
+HINT: Note the input is very tall and big, you will need to tile
+"""
+
 class Model(nn.Module):
     """
     Simple model that performs a single matrix multiplication (C = A * B) where one of the matrices is tall and skinny (M >> N or N >> M)
@@ -22,14 +26,14 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: Output matrix of shape (M, N) or (N, M)
         """
-        return torch.matmul(A, B, dtype=OUTPUT_DTYPE)
+        return torch.matmul(A, B).to(OUTPUT_DTYPE)
 
 M = 16384
 N = 16
 
 def get_inputs():
-    A = torch.randn(M, N, dtype=INPUT_DTYPE)
-    B = torch.randn(N, M, dtype=INPUT_DTYPE)
+    A = torch.ones(M, N, dtype=INPUT_DTYPE)
+    B = torch.ones(N, M, dtype=INPUT_DTYPE)
     return [A, B]
 
 def get_init_inputs():

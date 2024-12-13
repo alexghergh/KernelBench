@@ -185,7 +185,7 @@ def prompt_generate_custom_cuda_from_prompt_template(ref_arch_src: str) -> str:
 ############################################
 
 PROBLEM_TK_STATEMENT = """You write custom ThunderKitten kernels to replace the PyTorch operators in the given architecture to get speedups. \n
-    ThunderKitten provides tile primitives to write CUDA Kernels for GPUs. You can make the decision to replace some operators in the given Torch architecture with custom ThunderKitten kernels and leave others unchanged.\n
+    ThunderKitten (TK) provides tile primitives to write CUDA Kernels for GPUs. You can make the decision to replace some operators in the given Torch architecture with custom ThunderKitten kernels and leave others unchanged.\n
 """
 
 PROBLEM_TK_INSTRUCTION = """
@@ -202,13 +202,19 @@ def prompt_generate_custom_thunderkitten(
     example_arch_src: str, 
     example_new_arch_src: str, 
     example_new_kernel_src: str, 
-    example_arch_src_1: str = None, 
-    example_new_arch_src_1: str = None, 
-    example_new_kernel_src_1: str = None, 
+    example_complex_kernel_src: str,
     tk_knowledge: str = None
 ) -> str:
     # NOTE: Maybe replace this with TK MegaPrompt with some TK knoweldge.
     prompt = PROBLEM_TK_STATEMENT
+
+    if tk_knowledge:
+        prompt += f"""
+        Here is some information about ThunderKitten: \n
+        ```
+        {tk_knowledge}
+        ``` \n
+        """
 
     if example_arch_src != "" and example_new_arch_src != "":
         prompt += f"""
@@ -227,19 +233,11 @@ def prompt_generate_custom_thunderkitten(
         
         """
 
-    if example_arch_src_1 != "" and example_new_arch_src_1 != "":
+    if example_complex_kernel_src:
         prompt += f"""
-        Here's another example to show you how to write and use ThunderKitten kernel for an example problem: The example given PyTorch architecture to optimize is: \n
+        Here's an example of TK Kernel to show you how to tile if the inputs are too big: \n
         ``` \n
-        {example_arch_src_1}
-        ``` \n
-        The example new ThunderKitten kernel looks like this: 
-        ```
-        {example_new_kernel_src_1}
-        ``` \n
-        The example new PyTorch architecture calling custom ThunderKitten kernels looks like this: 
-        ```
-        {example_new_arch_src_1}
+        {example_complex_kernel_src}
         ``` \n
         """
 
@@ -273,14 +271,21 @@ def prompt_generate_custom_thunderkitten_from_prompt_template(ref_arch_src: str)
         REPO_TOP_PATH, f"src/tk_prompts/kernel_new_ex_mul.cu"
     )
 
+    example_complex_kernel_path = os.path.join(
+        REPO_TOP_PATH, f"src/tk_prompts/kernel_new_ex_attn.cu"
+    )
+
+
+
     tk_knowledge_path = os.path.join(REPO_TOP_PATH, "src/tk_prompts/tk_knowledge.txt")
 
     example_arch = read_file(example_arch_path)
     example_new_arch = read_file(example_new_arch_path)
     example_new_kernel = read_file(example_new_kernel_path)
+    example_complex_kernel = read_file(example_complex_kernel_path)
     tk_knowledge = read_file(tk_knowledge_path)
 
-    return prompt_generate_custom_thunderkitten(arch, example_arch, example_new_arch, example_new_kernel, tk_knowledge)
+    return prompt_generate_custom_thunderkitten(arch, example_arch, example_new_arch, example_new_kernel, example_complex_kernel, tk_knowledge)
 
 
 

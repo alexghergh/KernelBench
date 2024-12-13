@@ -28,7 +28,7 @@ struct micro_globals {
     o_gl o;
     dim3 grid()  { return dim3(o.depth, o.batch); } // dimensions we parallelize over (e.g., batches, heads)
     dim3 block() { return dim3(NUM_THREADS); } // number of threads per threadblock
-    size_t dynamic_shared_memory() { return 224000; } // I added this but kinda sus
+    size_t dynamic_shared_memory() { return 224000; } // shared memory size for H100
     
 };
 

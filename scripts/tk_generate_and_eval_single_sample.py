@@ -51,11 +51,11 @@ class EvalConfig(Config):
         self.eval_mode = "local"
 
         # Inference config
-        self.server_type = "deepseek"
-        self.model_name = "deepseek-coder"
+        # self.server_type = "deepseek"
+        # self.model_name = "deepseek-coder"
 
-        # self.server_type = "anthropic"
-        # self.model_name = "claude-3-5-sonnet-latest"
+        self.server_type = "anthropic"
+        self.model_name = "claude-3-5-sonnet-latest"
         self.max_tokens = 4096
         self.temperature = 0.0
 
