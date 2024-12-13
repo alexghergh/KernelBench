@@ -9,4 +9,5 @@ results/*
 runs/*
 cache/*
 !results/timing/
-kernels/*
+# kernels/*
+*.so
