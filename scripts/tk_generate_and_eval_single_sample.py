@@ -8,7 +8,7 @@ import subprocess
 from datasets import load_dataset
 
 import shutil
-from src.dataset import construct_kernelbench_dataset
+from src.dataset import construct_kernelbench_dataset, construct_problem_dataset_from_problem_dir
 from src.eval import KernelExecResult, eval_kernel_against_ref, check_metadata_serializable_all_types
 # ThunderKitten specific prompts, edit there!
 from src.prompt_constructor import prompt_generate_custom_thunderkitten_from_prompt_template
@@ -117,7 +117,9 @@ def main(config: EvalConfig):
         curr_level_dataset = dataset[f"level_{config.level}"]
     elif config.dataset_src == "local":
         curr_level_dataset = construct_kernelbench_dataset(config.level)
-
+    elif config.dataset_src == "local_tk":
+        curr_level_dataset = construct_problem_dataset_from_problem_dir(os.path.join(REPO_TOP_DIR, "KernelBench", f"tk"))
+  
     assert os.environ.get("THUNDERKITTENS_ROOT"), "THUNDERKITTENS_ROOT environment variable is not set, please run source env.src in the ThunderKitten repo"
     
     if config.gpu_arch:
@@ -131,33 +133,38 @@ def main(config: EvalConfig):
     print(f"Number of problems in Level {config.level}: {num_problems}")
     print(f"Start Generation + Evaluation for Level {config.level} Problem {config.problem_id}")
 
-    assert config.problem_id <= num_problems, f"Problem ID {config.problem_id} out of range for Level {config.level}"
+    # assert config.problem_id <= num_problems, f"Problem ID {config.problem_id} out of range for Level {config.level}"
 
 
     # # 1. Fetch Problem
-    # if config.dataset_src == "huggingface":
-    #     curr_problem_row = curr_level_dataset.filter(lambda x: x["problem_id"] == config.problem_id)
-    #     ref_arch_src = curr_problem_row["code"][0]
-    #     problem_name = curr_problem_row["name"][0]
+    assert config.dataset_src == "local_tk", "Only local dataset is supported for ThunderKitten"
 
-    assert config.dataset_src == "local", "Only local dataset is supported for ThunderKitten"
+    if config.dataset_src == "local_tk":
+        for problem_path in curr_level_dataset:
+            problem_name = os.path.basename(problem_path)
+            problem_number = int(problem_name.split("_")[0])
+            if problem_number == config.problem_id:
+                ref_arch_path = problem_path
+                break
+        assert ref_arch_path is not None, f"Problem {config.problem_id} not found in dataset"
+        problem_name = os.path.basename(ref_arch_path)
+        ref_arch_src = read_file(ref_arch_path)
+        
     # if config.dataset_src == "local":
     #     problem_idx_in_dataset = config.problem_id - 1 # due to dataset list being 0-indexed locally
     #     ref_arch_path = curr_level_dataset[problem_idx_in_dataset]
 
     #     problem_name = os.path.basename(ref_arch_path)
     #     ref_arch_src = read_file(ref_arch_path)
-
         
-
     # Extract problem number from problem name (e.g. "1" from "1_Square_matrix_multiplication_.py")
     # problem_number = int(problem_name.split("_")[0])
     # assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
     
 
     # For now: let's hardcode and use the toy problem as an example
-    ref_arch_src = read_file(os.path.join(REPO_TOP_DIR, "KernelBench/tk/9_Tall_skinny_matrix_multiplication_.py"))
-    problem_name = "TOY SUB PROBLEM"# toy problem
+    # ref_arch_src = read_file(os.path.join(REPO_TOP_DIR, "KernelBench/tk/9_Tall_skinny_matrix_multiplication_.py"))
+    # problem_name = "TOY SUB PROBLEM"# toy problem
     
     # 2. Construct Prompt
     # TODO: @Simran this is where I need your help!!
