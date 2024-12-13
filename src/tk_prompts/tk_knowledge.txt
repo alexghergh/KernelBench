@@ -1,0 +1,30 @@
+We are providing an API with simple CUDA primitives, called TK:
+
+Recall that the general steps in a CUDA kernel are:
+1. Define shared memory allocator and tiles
+2. Define register memory
+3. Load from global to shared memory using {b, h, d, w} indexing
+4. Load from shared to register memory
+5. Do the work on tiles
+6. Store from register to shared memory
+7. Store from shared to global memory using {b, h, d, w} indexing
+
+TK contains tile primitives at the register (rt) and shared (st) memory levels. 
+rt<bf16, M, N, ducks::rt_layout::row> x_reg; // bf16 register of dimensions MxN
+st<bf16, M, N> (&x_s) = al.allocate<st<bf16, M, N>>(); // bf16 shared memory tile of dimensions MxN
+
+TK also contains library functions over tiles:
+1. Matrix multiplies on tiles: you can use mma_ABt (row layout, row layout), mma_AtB, mma_AB (row, col), mma_AtBt
+2. Library functions on tiles and the format is: fn(output, input_a, input_b). Example functions are:
+- mul(dst, src_a, src_b)
+- exp(dst, src)
+- mma_ABt(dst, src_a, src_b, accum)
+3. load and store operations and the format is: 
+- load(output, input, {b, h, d, w}) for global to shared for batch, head, rows, columns
+- store(output, input, {b, h, d, w}) for global to shared
+- load(output, input) for shared to register
+- store(output, input)
+
+NOTE: there is a limited amount of GPU registers and shared memory available, so sometimes we will need to tile the input tensors and do the computation in smaller chunks. As a rule of thumb, TK tiles should not use dimensions larger than 64x64 dimensions; tiling should be used for larger tensors. 
+
+

@@ -34,13 +34,6 @@ struct micro_globals {
 
 /*
 ACTUAL CUDA KERNEL
-1. Define shared memory allocator and tiles
-2. Define register memory
-3. Load from global to shared memory using {b, h, d, w} indexing
-4. Load from shared to register memory
-5. Do the work on tiles
-6. Store from register to shared memory
-7. Store from shared to global memory using {b, h, d, w} indexing
 */
 __global__ __launch_bounds__(NUM_THREADS, 1)
 void micro_tk(const __grid_constant__ micro_globals g) {
@@ -54,9 +47,9 @@ void micro_tk(const __grid_constant__ micro_globals g) {
 
     // inputs should be in bf16, outputs should be in float
     // tiles can be in row or col layout
-    st<bf16, M, N, ducks::rt_layout::row> (&x_s) = al.allocate<st<bf16, M, N, ducks::rt_layout::row>>(); // bf16 tiles
-    st<bf16, M, N, ducks::rt_layout::row> (&y_s) = al.allocate<st<bf16, M, N, ducks::rt_layout::row>>(); // bf16 tiles
-    st<float, M, M, ducks::rt_layout::row> (&o_s) = al.allocate<st<float, M, M, ducks::rt_layout::row>>(); // float tiles
+    st<bf16, M, N> (&x_s) = al.allocate<st<bf16, M, N>>(); // bf16 tiles
+    st<bf16, M, N> (&y_s) = al.allocate<st<bf16, M, N>>(); // bf16 tiles
+    st<float, M, M> (&o_s) = al.allocate<st<float, M, M>>(); // float tiles
 
     // register memory
     // inputs should be in bf16, outputs should be in float
@@ -76,7 +69,6 @@ void micro_tk(const __grid_constant__ micro_globals g) {
     __syncthreads();
 
     // now do the matmul and accumulate to accum_tile
-    // you can use mma_ABt, mma_AtB, mma_AB, mma_AtBt
     mma_ABt(accum_tile, x_reg, y_reg, accum_tile); // o = torch.matmul(x, x.transpose(1, 2))
     __syncthreads();
 
