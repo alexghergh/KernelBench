@@ -22,7 +22,7 @@ class Model(nn.Module):
         Returns:
             Output tensor of shape (M, N).
         """
-        return torch.matmul(A, B, dtype=OUTPUT_DTYPE)
+        return torch.matmul(A, B).to(OUTPUT_DTYPE)
 
 M = 16384
 N = 16384

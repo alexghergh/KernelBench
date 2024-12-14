@@ -11,9 +11,10 @@ using namespace kittens;
 
 /* 
 MODEL TODO: DEFINE GLOBAL MEMORY DESCRIPTORS
+Format: gl<bf16, -1, -1, -1, -1,  st<bf16, M, N>>;
 gl: indicates global layout
 bf16: indicates the data type
-dimmensions: {batch, head, depth, width} for global tensors (-1 means runtime dimension, non-negative means compile-time dimension)
+four dimmensions: {batch, head, depth, width} (-1 is runtime dimension)
 st: when loading from global tensor at some {b, h, d, w} index, this is the shape of the tile that will be loaded to shared memory
 */
 using x_gl  = gl<bf16, -1, -1, -1, -1,  st<bf16, M, N>>;  // input is bfloat16

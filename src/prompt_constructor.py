@@ -235,7 +235,7 @@ def prompt_generate_custom_thunderkitten(
 
     if example_complex_kernel_src:
         prompt += f"""
-        Here's an example of TK Kernel to show you how to tile if the inputs are too big: \n
+        Here's an example of TK Kernel that tiles the computation because the tensors are too big: \n
         ``` \n
         {example_complex_kernel_src}
         ``` \n

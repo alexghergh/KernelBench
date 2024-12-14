@@ -1,4 +1,4 @@
-We are providing an API with simple CUDA primitives, called TK:
+We are providing an API with simple programming primitives, called TK, to simplify the coding task:
 
 Recall that the general steps in a CUDA kernel are:
 1. Define shared memory allocator and tiles
@@ -18,12 +18,21 @@ TK also contains library functions over tiles:
 2. Library functions on tiles and the format is: fn(output, input_a, input_b). Example functions are:
 - mul(dst, src_a, src_b)
 - exp(dst, src)
-- mma_ABt(dst, src_a, src_b, accum)
+- mma_AB(dst, src_a, src_b, accum) // for row-major src_a and col-major src_b
+- mma_ABt(dst, src_a, src_b, accum) // for row-major src_a and row-major src_b
 3. load and store operations and the format is: 
-- load(output, input, {b, h, d, w}) for global to shared for batch, head, rows, columns
-- store(output, input, {b, h, d, w}) for global to shared
+- load(output, input, {b, h, r, c}) for global to shared 
+- store(output, input, {b, h, r, c}) for global to shared
 - load(output, input) for shared to register
 - store(output, input)
+
+Globals struct (globals g) contains pointers to global memory tensors. 
+We define: using x_gl  = gl<bf16, -1, -1, -1, -1,  st<bf16, _row, _col>>; 
+- data type
+- four runtime dimensions
+- shape of a tile
+We initialize: x_gl x;
+We can access the dimensions of the tensor as: Batch ("g.x.batch") Heads ("g.x.depth") Rows ("g.x.rows") Columns ("g.a_ex.cols")
 
 NOTE: there is a limited amount of GPU registers and shared memory available, so sometimes we will need to tile the input tensors and do the computation in smaller chunks. As a rule of thumb, TK tiles should not use dimensions larger than 64x64 dimensions; tiling should be used for larger tensors. 
 
