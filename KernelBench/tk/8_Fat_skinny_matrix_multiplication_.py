@@ -29,7 +29,7 @@ class Model(nn.Module):
         return torch.matmul(A, B).to(OUTPUT_DTYPE)
 
 M = 16
-N = 1024
+N = 16384
 
 def get_inputs():
     A = torch.ones(M, N, dtype=INPUT_DTYPE)

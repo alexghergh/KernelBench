@@ -56,6 +56,7 @@ class EvalConfig(Config):
 
         self.server_type = "anthropic"
         self.model_name = "claude-3-5-sonnet-latest"
+
         # self.server_type = "openai"
         # self.model_name = "o1-preview"
         # self.model_name = "o1-preview-2024-09-12"

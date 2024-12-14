@@ -33,10 +33,31 @@ class EvalConfig(Config):
         self.kernel_builds_dir = os.path.join(REPO_TOP_DIR, "kernels")
 
         self.level = 1
-        self.problem_id = 9
+        self.problem_id = 8
         
         self.verbose = True
         self.log = True
+
+        self.fetch_baseline_time = True
+        self.baseline_time_dir = os.path.join(REPO_TOP_DIR, "results/timing/tk")
+
+
+def fetch_baseline_time(
+    level_name: str, problem_id: int, problem_name: str, baseline_time_filepath: str
+) -> dict:
+    """
+    Fetch the baseline time from the time
+    """
+    if not os.path.exists(baseline_time_filepath):
+        raise FileNotFoundError(
+            f"Baseline time file not found at {baseline_time_filepath}"
+        )
+
+    with open(baseline_time_filepath, "r") as f:
+        baseline_json = json.load(f)
+
+    baseline_time = baseline_json[level_name].get(problem_name, None)
+    return baseline_time
 
 def create_compilation_file_kernel_exec_result(error_msg):
     """
@@ -94,14 +115,15 @@ def main(config: EvalConfig):
     # see batch eval for examples of process isolation
     ############################################################
    
+
     kernel_exec_result = None
 
     # new model code
     kernel_exec_result = eval_kernel_against_ref(
-        ref_arch_src, new_model_code, verbose=config.verbose, measure_performance=True, num_correct_trials=5, num_perf_trials=100, kernel_dir=kernel_dir
+        ref_arch_src, new_model_code, verbose=config.verbose, measure_performance=True, num_correct_trials=1, num_perf_trials=100, kernel_dir=kernel_dir
     )
-            
 
+    tk_time = kernel_exec_result.runtime_stats 
             
     print(f"Evaluation result for level {config.level} problem {config.problem_id}:\n{kernel_exec_result}")
 
@@ -111,6 +133,36 @@ def main(config: EvalConfig):
             f.write(str(kernel_exec_result))
 
 
+    if config.fetch_baseline_time:
+
+        baseline_time = fetch_baseline_time(f"level_tk", config.problem_id, problem_name, os.path.join(config.baseline_time_dir, f"baseline_time.json"))
+        baseline_torch_compile_time = fetch_baseline_time(f"level_tk", config.problem_id, problem_name, os.path.join(config.baseline_time_dir, f"baseline_time_torch_compile.json"))
+        baselien_torch_compile_max_autotune_time = fetch_baseline_time(f"level_tk", config.problem_id, problem_name, os.path.join(config.baseline_time_dir, f"baseline_time_torch_compile_mode_max-autotune.json"))
+        print(f"""Baseline time for problem {problem_name}:
+                Torch Eager: {baseline_time}
+                Torch Compile: {baseline_torch_compile_time}
+                Torch Compile Max Autotune: {baselien_torch_compile_max_autotune_time}""")
+
+    print(f"TK Time: {tk_time}")
+
+    # Create a table comparing all timing results
+    print("\nTiming Comparison Table (all times in ms):")
+    print("-" * 80)
+    print(f"{'Method':<30} {'Mean':>10} {'Std':>10} {'Min':>10} {'Max':>10} {'Trials':>8}")
+    print("-" * 88)
+    
+    if tk_time:
+        print(f"{'TK Implementation':<30} {tk_time['mean']:>10.3f} {tk_time['std']:>10.3f} {tk_time['min']:>10.3f} {tk_time['max']:>10.3f} {tk_time['num_trials']:>8}")
+    
+    if baseline_time:
+        print(f"{'Torch Eager':<30} {baseline_time['mean']:>10.3f} {baseline_time['std']:>10.3f} {baseline_time['min']:>10.3f} {baseline_time['max']:>10.3f} {baseline_time['num_trials']:>8}")
+    
+    if baseline_torch_compile_time:
+        print(f"{'Torch Compile':<30} {baseline_torch_compile_time['mean']:>10.3f} {baseline_torch_compile_time['std']:>10.3f} {baseline_torch_compile_time['min']:>10.3f} {baseline_torch_compile_time['max']:>10.3f} {baseline_torch_compile_time['num_trials']:>8}")
+    
+    if baselien_torch_compile_max_autotune_time:
+        print(f"{'Torch Compile Max Autotune':<30} {baselien_torch_compile_max_autotune_time['mean']:>10.3f} {baselien_torch_compile_max_autotune_time['std']:>10.3f} {baselien_torch_compile_max_autotune_time['min']:>10.3f} {baselien_torch_compile_max_autotune_time['max']:>10.3f} {baselien_torch_compile_max_autotune_time['num_trials']:>8}")
+    print("-" * 80)
 
 if __name__ == "__main__":
     main()

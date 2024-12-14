@@ -11,7 +11,8 @@ using namespace kittens;
 
 /* 
 MODEL TODO: DEFINE GLOBAL MEMORY DESCRIPTORS
-Format: gl<bf16, -1, -1, -1, -1,  st<bf16, M, N>>;
+Format: gl<bf16, -1, -1, -1, -1,  st<bf16, M, N>>; 
+Make sure you have 4 dimensions (-1, -1, -1, -1) in example above
 gl: indicates global layout
 bf16: indicates the data type
 four dimmensions: {batch, head, depth, width} (-1 is runtime dimension)

@@ -5,7 +5,7 @@ import torch.nn as nn
 INPUT_DTYPE = torch.bfloat16
 OUTPUT_DTYPE = torch.float
 
-M = 16
+M = 64
 N = 16
 
 class ModelNew(nn.Module):
