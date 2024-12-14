@@ -22,7 +22,7 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: Output matrix C of shape (N, N).
         """
-        return torch.matmul(A, B, dtype=OUTPUT_DTYPE)
+        return torch.matmul(A, B).to(OUTPUT_DTYPE)
 
 N = 2048
 
