@@ -12,7 +12,7 @@ For each problem, we put the kernel code in a folder with the following structur
 
 ### Note on Sakana's Eval System
 
-⚠️ **To be clear**: There are many differnces between Sakana's eval system and our eval system -- while our eval system is not completely robust, there are some important differences to discuss. Here is an example of the Sakana eval, provided by one of the [Sakana paper authors](https://x.com/RobertTLange/status/1892489402070220989). A huge difference is how they wrap their inline CUDA code -- we query the model to generate an entirely new model and forward function, while they choose to overwrite the forward function of a fixed model. These differences change the behavior of some of the caching hacks that the Sakana model was able to use (notably, the infamous Matmul for TriLower matrices that gets a 150x speedup fails the correctness checks on our eval). Furthermore, we use synchronization markers (CUDA events) in our eval to prevent hacky solutions from passing -- these are not the most robust ways to time kernels (which we want to address too) and may even add some extra unwanted overhead, but at the very least it mitigates some hacky solutions.
+⚠️ **To be clear** ⚠️: There are many differnces between Sakana's eval system and our eval system -- while our eval system is not completely robust, there are some important differences to discuss. Here is an example of the Sakana eval, provided by one of the [Sakana paper authors](https://x.com/RobertTLange/status/1892489402070220989). A huge difference is how they wrap their inline CUDA code -- we query the model to generate an entirely new model and forward function, while they choose to overwrite the forward function of a fixed model. These differences change the behavior of some of the caching hacks that the Sakana model was able to use (notably, the infamous Matmul for TriLower matrices that gets a 150x speedup fails the correctness checks on our eval). Furthermore, we use synchronization markers (CUDA events) in our eval to prevent hacky solutions from passing -- these are not the most robust ways to time kernels (which we want to address too) and may even add some extra unwanted overhead, but at the very least it mitigates some hacky solutions.
 
 You can use `scripts/run_and_check.py` to evaluate **using the KernelBench Eval code**. 
 
@@ -26,7 +26,6 @@ To use the KernelBench eval on this problem, you can run the following command:
 ```
 python3 scripts/run_and_check.py ref_origin=kernelbench level=1 problem_id=15 kernel_src_path=sakana_kernels/level1_problem15/15_Matmul_for_lower_triangular_matrices_kernelbench.py
 ```
-
 
 For this problem, the CUDA kernel is initialized with a 1D grid as follows:
 ```
