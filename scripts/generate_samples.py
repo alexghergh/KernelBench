@@ -56,9 +56,8 @@ class GenerationConfig(Config):
         self.verbose = False
         self.store_type = "local" # TODO: add Database Integration
 
-        # Future support
-        # Migrate Monkeys code base to KernelBench
-        # self.num_samples = 0 # for sampling multiple samples per problem
+        # Number of samples to generate per problem for pass@k analysis
+        self.num_samples = 1 # Default to 1 sample per problem
 
         self.log_prompt = False
 
@@ -160,7 +159,7 @@ def main(config: GenerationConfig):
         assert config.subset[0] >= 1 and config.subset[1] <= num_problems_in_level, f"Subset range {config.subset} out of range for Level {config.level}"
         problem_id_range = range(config.subset[0], config.subset[1])
 
-    print(f"Generating on 1 sample each for level {config.level} problems: {problem_id_range}")
+    print(f"Generating {config.num_samples} sample(s) each for level {config.level} problems: {problem_id_range}")
 
     # set up run directory
     run_dir = os.path.join(config.runs_dir, config.run_name)
@@ -172,14 +171,14 @@ def main(config: GenerationConfig):
 
     problems_to_run = []
     for problem_id in range(problem_id_range.start, problem_id_range.stop + 1): # end index is inclusive
-        # assume sample id is 0 for now
-        if not check_kernel_exists(run_dir, config.level, problem_id, sample_id=0):
-            problems_to_run.append(
-                WorkArgs(
-                    problem_id=int(problem_id),
-                    sample_id=0 # fix to 0 for now
-                )
-        )
+        for sample_id in range(config.num_samples):
+            if not check_kernel_exists(run_dir, config.level, problem_id, sample_id):
+                problems_to_run.append(
+                    WorkArgs(
+                        problem_id=int(problem_id),
+                        sample_id=sample_id
+                    )
+            )
     
 
     # Create inference function with config parameters
