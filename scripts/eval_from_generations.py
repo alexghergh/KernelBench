@@ -10,7 +10,7 @@ from src import eval, utils, compile
 import torch
 import os
 import multiprocessing as mp
-
+import numpy as np
 
 from datasets import load_dataset
 
@@ -81,6 +81,12 @@ class EvalConfig(Config):
 
         # number of GPUs to do batch evaluation
         self.num_gpu_devices = 1
+
+        # Number of samples per problem to evaluate for pass@k analysis
+        self.num_samples_per_problem = 1  # Default to 1 sample per problem
+        
+        # List of k values for pass@k calculation (e.g., [1, 5, 10])
+        self.pass_at_k_values = [1, 2]  # Default to only pass@1
         
 
     def __repr__(self):
@@ -403,7 +409,7 @@ def main(config: EvalConfig):
         assert config.subset[0] >= 1 and config.subset[1] <= num_problems_in_level, f"Subset range {config.subset} out of range for Level {config.level}"
         problem_id_range = range(config.subset[0], config.subset[1])
 
-    print(f"Evaluating 1 sample each for level {config.level} problems: {problem_id_range}")
+    print(f"Evaluating {config.num_samples_per_problem} sample(s) each for level {config.level} problems: {problem_id_range}")
 
     run_dir = os.path.join(config.runs_dir, config.run_name)
     eval_file_path = os.path.join(run_dir, f"eval_results.json")
@@ -418,9 +424,9 @@ def main(config: EvalConfig):
 
     total_work = []
     for problem_id in range(problem_id_range.start, problem_id_range.stop + 1): # end index is inclusive
-        sample_id = 0 # only evaluate 1 sample for now
-        if not check_if_eval_exists_local(problem_id, sample_id, eval_file_path):
-            total_work.append((problem_id, sample_id))
+        for sample_id in range(config.num_samples_per_problem):
+            if not check_if_eval_exists_local(problem_id, sample_id, eval_file_path):
+                total_work.append((problem_id, sample_id))
 
     print(f"Start evaluation on {len(total_work)} unevaluated samples in range: {problem_id_range}")
     # Build Cache on CPU as that is faster
@@ -429,6 +435,89 @@ def main(config: EvalConfig):
 
     # Batch Eval on multiple GPUs in parallel
     batch_eval(total_work, config, curr_level_dataset, run_dir, eval_file_path)
+    
+    # Calculate pass@k metrics if multiple samples per problem were evaluated
+    if config.num_samples_per_problem > 1:
+        calculate_pass_at_k(eval_file_path, config.pass_at_k_values)
+
+def calc_pass_at_k(n, c, k): 
+  """ 
+  :param n: total number of samples 
+  :param c: number of correct samples 
+  :param k: k in pass@$k$ 
+  """ 
+  if n - c < k: 
+    return 1.0 
+  return 1.0 - np.prod(1.0 - k / np.arange(n - c + 1, n + 1))
+
+def calculate_pass_at_k(eval_file_path: str, k_values: list[int]) -> dict:
+    """
+    Calculate pass@k metrics from evaluation results.
+    
+    pass@k is the probability that at least one of k samples passes (is correct).
+    Formula: 1 - (1 - c/n)^k, where c is number of correct samples and n is total samples evaluated.
+    
+    Args:
+        eval_file_path: Path to evaluation results file
+        k_values: List of k values to calculate pass@k for
+        
+    Returns:
+        Dictionary mapping problem_id to pass@k metrics for each k value
+    """
+    if not os.path.exists(eval_file_path):
+        print(f"[WARNING] Evaluation file {eval_file_path} does not exist. Cannot calculate pass@k.")
+        return {}
+        
+    with open(eval_file_path, "r") as f:
+        eval_results = json.load(f)
+    
+    # Group results by problem_id
+    results_by_problem = {}
+    for _, result in eval_results.items():
+        problem_id = result["problem_id"]
+        if problem_id not in results_by_problem:
+            results_by_problem[problem_id] = []
+        results_by_problem[problem_id].append(result)
+    
+    # Calculate pass@k for each problem
+    pass_at_k_results = {}
+    for problem_id, results in results_by_problem.items():
+        # Count correct samples
+        total_samples = len(results)
+        correct_samples = sum(1 for r in results if r["correctness"] and r["compiled"])
+        
+        # Calculate pass@k for each k value
+        pass_at_k_metrics = {}
+        for k in k_values:
+            if k > total_samples:
+                print(f"[WARNING] k={k} is greater than total samples {total_samples} for problem {problem_id}. Using k={total_samples}.")
+                k = total_samples
+            
+            pass_at_k = calc_pass_at_k(total_samples, correct_samples, k)
+            pass_at_k_metrics[f"pass@{k}"] = pass_at_k
+        
+        pass_at_k_results[problem_id] = {
+            "total_samples": total_samples,
+            "correct_samples": correct_samples,
+            **pass_at_k_metrics
+        }
+    
+    # Calculate overall average pass@k
+    overall_avg = {f"avg_pass@{k}": sum(r[f"pass@{k}"] for r in pass_at_k_results.values()) / len(pass_at_k_results) 
+                  for k in k_values if len(pass_at_k_results) > 0}
+    
+    # Write pass@k results to file
+    pass_at_k_file_path = os.path.join(os.path.dirname(eval_file_path), "pass_at_k_results.json")
+    with open(pass_at_k_file_path, "w") as f:
+        json.dump({
+            "problems": pass_at_k_results,
+            "overall": overall_avg
+        }, f, indent=2)
+    
+    print(f"Pass@k metrics calculated and saved to {pass_at_k_file_path}")
+    print(f"Overall pass@k metrics: {overall_avg}")
+    
+    return pass_at_k_results
 
 
 if __name__ == "__main__":
