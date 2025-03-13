@@ -239,9 +239,10 @@ def cuda_single_eval_wrapper(curr_work: WorkArgs, configs: dict, dataset, run_di
             pool.terminate()
             pool.join()
             raise
-        except mp.TimeoutError as e:
+        except mp.TimeoutError:
             print(
-                f"[WARNING] Evaluation TIMED OUT for Problem ID: {curr_work.problem_id}, Sample ID: {curr_work.sample_id}"
+                f"[WARNING] Evaluation TIMED OUT for Problem ID: {curr_work.problem_id},"
+                f" Sample ID: {curr_work.sample_id}"
             )
 
         print(
@@ -503,7 +504,8 @@ def main(config: EvalConfig):
                 total_work.append((problem_id, sample_id))
 
     print(
-        f"Start evaluation on {len(total_work)} unevaluated samples in range: {problem_id_range}"
+        f"Start evaluation on {len(total_work)} unevaluated samples"
+        f" in range: {problem_id_range}"
     )
     # Build Cache on CPU as that is faster
     if config.build_cache:
@@ -581,16 +583,44 @@ def calculate_pass_at_k(eval_file_path: str, k_values: list[int]) -> dict:
             **pass_at_k_metrics,
         }
 
+    # Calculate average pass@k metrics across all problems
+    avg_pass_at_k = {}
+    total_problems = len(pass_at_k_results)
+    if total_problems > 0:
+        for k in k_values:
+            avg_pass_at_k[f"avg_pass@{k}"] = (
+                sum(result[f"pass@{k}"] for result in pass_at_k_results.values()) 
+                / total_problems
+            )
+    
+    # Add metadata about the evaluation
+    metadata = {
+        "total_problems": total_problems,
+        "problems_with_samples": len([p for p, r in pass_at_k_results.items() if r["total_samples"] > 0]),
+        "total_evaluated_samples": sum(r["total_samples"] for r in pass_at_k_results.values()),
+        "total_correct_samples": sum(r["correct_samples"] for r in pass_at_k_results.values()),
+    }
+    
+    # Construct the final result with averages, individual problem results, and metadata
+    final_results = {
+        "averages": avg_pass_at_k,
+        "metadata": metadata,
+        "problems": pass_at_k_results,
+    }
+    
     # Write pass@k results to file
     pass_at_k_file_path = os.path.join(
         os.path.dirname(eval_file_path), "pass_at_k_results.json"
     )
     with open(pass_at_k_file_path, "w") as f:
-        json.dump(pass_at_k_results, f, indent=2)
+        json.dump(final_results, f, indent=2)
 
+    # Print the average pass@k metrics
     print(f"Pass@k metrics calculated and saved to {pass_at_k_file_path}")
+    print(f"Evaluation metadata: {metadata}")
+    print(f"Average pass@k metrics: {avg_pass_at_k}")
 
-    return pass_at_k_results
+    return final_results
 
 
 if __name__ == "__main__":

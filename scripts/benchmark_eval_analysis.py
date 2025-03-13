@@ -67,6 +67,10 @@ def analyze_greedy_eval(run_name, hardware, baseline, level):
         eval_file_path
     ), f"Eval file does not exist at {eval_file_path}"
 
+    # Check if pass@k results exist
+    pass_at_k_file_path = f"runs/{run_name}/pass_at_k_results.json"
+    has_pass_at_k_results = os.path.exists(pass_at_k_file_path)
+
     baseline_file_path = f"results/timing/{hardware}/{baseline}.json"
     assert os.path.exists(
         baseline_file_path
@@ -74,6 +78,12 @@ def analyze_greedy_eval(run_name, hardware, baseline, level):
 
     with open(eval_file_path, "r") as f:
         eval_results = json.load(f)
+
+    # Load pass@k results if available
+    pass_at_k_results = None
+    if has_pass_at_k_results:
+        with open(pass_at_k_file_path, "r") as f:
+            pass_at_k_results = json.load(f)
 
     with open(baseline_file_path, "r") as f:
         baseline_results = json.load(f)
@@ -162,6 +172,24 @@ def analyze_greedy_eval(run_name, hardware, baseline, level):
             results, headers=["Speedup Threshold (p)", "Fast_p Score"], tablefmt="grid"
         )
     )
+    
+    # Display pass@k metrics if available
+    if pass_at_k_results:
+        print("\nPass@k Metrics:")
+        
+        # Print metadata
+        metadata = pass_at_k_results.get("metadata", {})
+        if metadata:
+            print("\nEvaluation Metadata:")
+            metadata_table = [[key, value] for key, value in metadata.items()]
+            print(tabulate(metadata_table, headers=["Metric", "Value"], tablefmt="grid"))
+        
+        # Print average pass@k metrics
+        averages = pass_at_k_results.get("averages", {})
+        if averages:
+            print("\nAverage Pass@k Metrics:")
+            avg_table = [[k, v] for k, v in averages.items()]
+            print(tabulate(avg_table, headers=["Metric", "Value"], tablefmt="grid"))
 
 
 @pydra.main(base=AnalysisConfig)
