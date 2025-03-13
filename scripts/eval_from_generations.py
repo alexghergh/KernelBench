@@ -632,7 +632,7 @@ def calculate_pass_at_k(eval_file_path: str, k_values: list[int]) -> dict:
         json.dump(final_results, f, indent=2)
 
     # Print the average pass@k metrics
-    print(f"Pass@k metrics calculated and saved to {pass_at_k_file_path}")
+    print(f"Pass@k Correctness metrics calculated and saved to {pass_at_k_file_path}")
     print(f"Evaluation metadata: {metadata}")
     print(f"Average pass@k metrics: {avg_pass_at_k}")
 

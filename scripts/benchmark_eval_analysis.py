@@ -172,18 +172,20 @@ def analyze_greedy_eval(run_name, hardware, baseline, level):
             results, headers=["Speedup Threshold (p)", "Fast_p Score"], tablefmt="grid"
         )
     )
-    
+
     # Display pass@k metrics if available
     if pass_at_k_results:
-        print("\nPass@k Metrics:")
-        
+        print("\nPass@k Correctness Metrics:")
+
         # Print metadata
         metadata = pass_at_k_results.get("metadata", {})
         if metadata:
             print("\nEvaluation Metadata:")
             metadata_table = [[key, value] for key, value in metadata.items()]
-            print(tabulate(metadata_table, headers=["Metric", "Value"], tablefmt="grid"))
-        
+            print(
+                tabulate(metadata_table, headers=["Metric", "Value"], tablefmt="grid")
+            )
+
         # Print average pass@k metrics
         averages = pass_at_k_results.get("averages", {})
         if averages:
