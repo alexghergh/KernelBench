@@ -67,7 +67,7 @@ class GenerationConfig(Config):
         self.store_type = "local"  # TODO: add Database Integration
 
         # Number of samples to generate per problem for pass@k analysis
-        self.num_samples = 10  # Default to 1 sample per problem
+        self.num_samples = 1  # Default to 1 sample per problem
 
         self.log_prompt = False
 

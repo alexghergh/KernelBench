@@ -91,10 +91,10 @@ class EvalConfig(Config):
         self.num_gpu_devices = 1
 
         # Number of samples per problem to evaluate for pass@k analysis
-        self.num_samples_per_problem = 10  # Default to 1 sample per problem
+        self.num_samples_per_problem = 1  # Default to 1 sample per problem
 
         # List of k values for pass@k calculation (e.g., [1, 5, 10])
-        self.pass_at_k_values = [1, 2, 5, 10]  # Default to only pass@1
+        self.pass_at_k_values = [1]  # Default to only pass@1
 
     def __repr__(self):
         return f"EvalConfig({self.to_dict()})"
@@ -588,26 +588,42 @@ def calculate_pass_at_k(eval_file_path: str, k_values: list[int]) -> dict:
     total_problems = len(pass_at_k_results)
     if total_problems > 0:
         for k in k_values:
-            avg_pass_at_k[f"avg_pass@{k}"] = (
-                sum(result[f"pass@{k}"] for result in pass_at_k_results.values()) 
+            filtered_results = {
+                p: r for p, r in pass_at_k_results.items() if f"pass@{k}" in r
+            }
+            avg_pass_at_k[f"avg_pass@{k}"] = float(
+                sum(result[f"pass@{k}"] for result in filtered_results.values())
                 / total_problems
             )
-    
+
     # Add metadata about the evaluation
     metadata = {
         "total_problems": total_problems,
-        "problems_with_samples": len([p for p, r in pass_at_k_results.items() if r["total_samples"] > 0]),
-        "total_evaluated_samples": sum(r["total_samples"] for r in pass_at_k_results.values()),
-        "total_correct_samples": sum(r["correct_samples"] for r in pass_at_k_results.values()),
+        "problems_with_samples": len(
+            [p for p, r in pass_at_k_results.items() if r["total_samples"] > 0]
+        ),
+        "total_evaluated_samples": sum(
+            r["total_samples"] for r in pass_at_k_results.values()
+        ),
+        "total_correct_samples": sum(
+            r["correct_samples"] for r in pass_at_k_results.values()
+        ),
     }
-    
+
+    # Add pass@k metadata
+    for k in k_values:
+        filtered_results = {
+            p: r for p, r in pass_at_k_results.items() if f"pass@{k}" in r
+        }
+        metadata[f"pass@{k}_count"] = len(filtered_results)
+
     # Construct the final result with averages, individual problem results, and metadata
     final_results = {
         "averages": avg_pass_at_k,
         "metadata": metadata,
         "problems": pass_at_k_results,
     }
-    
+
     # Write pass@k results to file
     pass_at_k_file_path = os.path.join(
         os.path.dirname(eval_file_path), "pass_at_k_results.json"
