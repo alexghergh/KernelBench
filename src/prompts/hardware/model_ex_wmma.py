@@ -13,7 +13,7 @@ class Model(nn.Module):
 def get_inputs():
     # Generate input tensors for the model:
     # 'a' has shape (1, 128) and 'b' has shape (128, 128) so that torch.matmul(a, b) is valid.
-    a = torch.randn(1, 128).cuda()
+    a = torch.randn(128, 128).cuda()
     b = torch.randn(128, 128).cuda()
     return [a, b]
 

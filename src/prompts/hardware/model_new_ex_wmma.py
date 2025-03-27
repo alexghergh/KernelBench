@@ -22,17 +22,17 @@ const int WMMA_K = 16;
 __global__ void wmma_matmul_kernel(const half* a, const half* b, float* out, int M, int N, int K) {
 
     // Leading dimensions. Packed with no transpositions.
-    int lda = M;
-    int ldb = K;
-    int ldc = M;
+    int lda = K;
+    int ldb = N;
+    int ldc = N;
 
     // Tile using a 2D grid
     int warpM = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
     int warpN = (blockIdx.y * blockDim.y + threadIdx.y);
 
     // Declare the fragments
-    wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::col_major> a_frag;
-    wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::col_major> b_frag;
+    wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
+    wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag;
     wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float> out_frag;
 
     wmma::fill_fragment(out_frag, 0.0f);
@@ -48,8 +48,8 @@ __global__ void wmma_matmul_kernel(const half* a, const half* b, float* out, int
     // Bounds checking
     if (aRow < M && aCol < K && bRow < K && bCol < N) {
         // Load the inputs
-        wmma::load_matrix_sync(a_frag, a + aRow + aCol * lda, lda);
-        wmma::load_matrix_sync(b_frag, b + bRow + bCol * ldb, ldb);
+        wmma::load_matrix_sync(a_frag, a + aRow * lda + aCol, lda);
+        wmma::load_matrix_sync(b_frag, b + bRow * ldb + bCol, ldb);
 
         // Perform the matrix multiplication
         wmma::mma_sync(out_frag, a_frag, b_frag, out_frag);
@@ -62,7 +62,7 @@ __global__ void wmma_matmul_kernel(const half* a, const half* b, float* out, int
     int outCol = warpN * WMMA_N;
 
     if (outRow < M && outCol < N) {
-        wmma::store_matrix_sync(out + outRow + outCol * ldc, out_frag, ldc, wmma::mem_col_major);
+        wmma::store_matrix_sync(out + outRow * ldc + outCol, out_frag, ldc, wmma::mem_row_major);
     }
 }
 
