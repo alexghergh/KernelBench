@@ -129,6 +129,18 @@ def measure_program_time(
 
 
 
+def extract_fusion_decisions_from_log(log_file: str) -> list[str]:
+    """
+    Extract fusion decisions from a log file
+    Returns lines that contain the word 'Sort'
+    """
+    sort_lines = []
+    with open(log_file, "r") as f:
+        for line in f:
+            if "Sort" in line:
+                sort_lines.append(line.strip())
+    return sort_lines
+
 
 def get_torch_compiled_model(
         ref_arch_name: str,
@@ -152,6 +164,12 @@ def get_torch_compiled_model(
     os.environ["TORCH_LOGS"] = "output_code"
     os.environ["TORCH_LOGS_OUT"] = log_file
     
+    # Delete log file if it exists
+    if os.path.exists(log_file):
+        os.remove(log_file)
+        if verbose:
+            print(f"Removed existing log file: {log_file}")
+
     # Update torch logging settings
     torch._logging.set_logs(output_code=True)
     
@@ -197,7 +215,7 @@ def get_torch_compiled_model(
             # explain the model, haven't figure out how to use this directly
             # explaination = explain(model, *inputs)
 
-            # import pdb; pdb.set_trace()
+
 
             elapsed_times = time_execution_with_cuda_event(
                 model, *inputs, num_trials=1, verbose=verbose, device=device
@@ -207,10 +225,15 @@ def get_torch_compiled_model(
             if verbose:
                 print(f"Torch Compile Log File: {log_file}")
 
+            fusion_decisions = extract_fusion_decisions_from_log(log_file)
+            print(f"===============Fusion Decision=================================")
+            for (i, decision) in enumerate(fusion_decisions):
+                print(f"Fusion Decision {i}: {decision}")
+            print(f"===============End of Fusion Decision=================================")
+
             return model
     except Exception as e:
         print(f"[Eval] Error in Measuring Performance: {e}")
-
 
 
 
