@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.utils.cpp_extension import load_inline
 
 # Define the custom CUDA kernel for async_memcpy
+# https://docs.nvidia.com/cuda/cuda-c-programming-guide/#without-memcpy-async
 source = """
     #include <torch/extension.h>
     #include <cuda_runtime.h>

@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.utils.cpp_extension import load_inline
 
 # Define the custom CUDA kernel for wmma matmul
+# https://developer.nvidia.com/blog/programming-tensor-cores-cuda-9/
 source = """
 #include <torch/extension.h>
 #include <cuda_runtime.h>
