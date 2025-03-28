@@ -144,3 +144,31 @@ level3_representative_subset = [
 ]
 
 level3_representative_subset_problem_ids = [1, 5, 8, 11, 20, 33, 38, 43]
+
+################################################################################
+# GEMM subset of KernelBench
+# problem_ids are 1-indexed (logical index)
+################################################################################
+
+level1_gemm_subset = [
+    "1_Square_matrix_multiplication_.py",
+    "2_Standard_matrix_multiplication_.py",
+    "3_Batched_matrix_multiplication.py",
+    "4_Matrix_vector_multiplication_.py",
+    "5_Matrix_scalar_multiplication.py",
+    "6_Matmul_with_large_K_dimension_.py",
+    "7_Matmul_with_small_K_dimension_.py",
+    "8_Matmul_with_irregular_shapes_.py",
+    "9_Tall_skinny_matrix_multiplication_.py",
+    "10_3D_tensor_matrix_multiplication.py",
+    "11_4D_tensor_matrix_multiplication.py",
+    "12_Matmul_with_diagonal_matrices_.py",
+    "13_Matmul_for_symmetric_matrices.py",
+    "14_Matmul_for_upper_triangular_matrices.py",
+    "15_Matmul_for_lower_triangular_matrices.py",
+    "16_Matmul_with_transposed_A.py",
+    "17_Matmul_with_transposed_B.py",
+    "18_Matmul_with_transposed_both.py",
+]
+
+level1_gemm_subset_problem_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
