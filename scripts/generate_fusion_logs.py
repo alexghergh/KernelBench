@@ -16,6 +16,7 @@ from src.utils import read_file
 import os
 import json
 from tqdm import tqdm
+import re
 
 
 from torch._dynamo import explain
@@ -25,8 +26,11 @@ from torch.fx import symbolic_trace
 """
 Understand PyTorch Fusion
 
-Usage
-# TORCH_LOGS_OUT="test.log" TORCH_LOGS="output_code" python3 ...
+
+Usage: Just run python3 generate_fusion_logs.py
+
+
+# [Deprecate] TORCH_LOGS_OUT="test.log" TORCH_LOGS="output_code" python3 ...
 # might no need explicit env variable setting
 
 TODO:
@@ -44,6 +48,16 @@ KERNEL_BENCH_PATH = os.path.join(REPO_TOP_PATH, "KernelBench")
 TIMING_DIR = os.path.join(REPO_TOP_PATH, "results", "timing")
 
 TORCH_COMPILE_LOG_DIR = os.path.join(REPO_TOP_PATH, "results", "level_2_torch_compile_logs")
+
+
+class FusionConfig(Config):
+    level_num: int = 2
+    problem_id: int = 1
+
+    verbose: bool = False
+
+    
+
 
 def fetch_ref_arch_from_dataset(dataset: list[str], 
                                 problem_id: int) -> tuple[str, str, str]:
@@ -132,15 +146,44 @@ def measure_program_time(
 def extract_fusion_decisions_from_log(log_file: str) -> list[str]:
     """
     Extract fusion decisions from a log file
-    Returns lines that contain the word 'Sort'
+    Only starts looking for 'Sort' after finding 'def call(args)'
     """
     sort_lines = []
+    found_call_def = False
+    
     with open(log_file, "r") as f:
         for line in f:
-            if "Sort" in line:
+            if "def call(args):" in line:
+                found_call_def = True
+                continue
+                
+            if found_call_def and "Sort" in line:
                 sort_lines.append(line.strip())
+    
     return sort_lines
 
+def get_fused_ops_from_sort_lines(sort_lines: list[str]) -> list[str]:
+    """
+    Format aten operations from sort lines into clean format
+    Input: Lines containing "Original ATen: [aten.op]"
+    Output: ['op', '(op1, op2, ...)']
+    """
+    formatted_ops = []
+    
+
+    for line in sort_lines:
+        # Use regex to find content after "Original ATen: [...]"
+        match = re.search(r"Original ATen: \[(.*?)\]", line)
+        if match:
+            ops = match.group(1)  # Get the content inside brackets
+            # Clean up the operations
+            ops = ops.replace('aten.', '')
+            # If comma separated, it's a group of operations
+            if ',' in ops:
+                ops = f"({ops})"
+            formatted_ops.append(ops)
+    
+    return formatted_ops
 
 def get_torch_compiled_model(
         ref_arch_name: str,
@@ -225,11 +268,15 @@ def get_torch_compiled_model(
             if verbose:
                 print(f"Torch Compile Log File: {log_file}")
 
-            fusion_decisions = extract_fusion_decisions_from_log(log_file)
-            print(f"===============Fusion Decision=================================")
-            for (i, decision) in enumerate(fusion_decisions):
-                print(f"Fusion Decision {i}: {decision}")
-            print(f"===============End of Fusion Decision=================================")
+                # to visualize individual fusion decision
+                fusion_decisions = extract_fusion_decisions_from_log(log_file)
+                print(f"===============Fusion Decision=================================")
+                for (i, decision) in enumerate(fusion_decisions):
+                    print(f"Fusion Decision {i}: {decision}")
+
+                fused_ops = get_fused_ops_from_sort_lines(fusion_decisions)
+                print(f"===============Fused Ops=================================")
+                print(f"Fused Ops: {fused_ops}")
 
             return model
     except Exception as e:
@@ -237,7 +284,7 @@ def get_torch_compiled_model(
 
 
 
-def test_measure_particular_program(level_num: int, problem_id: int):
+def test_measure_particular_program(level_num: int, problem_id: int, verbose: bool = False):
     """
     Test measure_program_time on a particular program
     """
@@ -257,17 +304,53 @@ def test_measure_particular_program(level_num: int, problem_id: int):
         torch_compile_backend="inductor",
         torch_compile_options="default",
         device=device,
-        verbose=False,
+        verbose=verbose,
         log_file=log_file)
+    
+def generate_fusion_logs_for_all_level_programs(level_num: int):
+    """
+    Generate fusion logs for all programs in a given level
+    """
+    device = torch.device("cuda:0")
 
+    PROBLEM_DIR = os.path.join(KERNEL_BENCH_PATH, "level" + str(level_num))
+    dataset = construct_problem_dataset_from_problem_dir(PROBLEM_DIR)
+
+    num_problems_in_level = len(dataset)
+    for problem_id in tqdm(range(1, num_problems_in_level + 1), desc="Generating fusion logs for all Level 2 programs"):
+        
+        ref_arch_path, ref_arch_name, ref_arch_src = fetch_ref_arch_from_dataset(dataset, problem_id)
+
+        log_file = os.path.join(TORCH_COMPILE_LOG_DIR, "{}.log".format(ref_arch_name))
+
+        model = get_torch_compiled_model(
+            ref_arch_name=ref_arch_name,
+            ref_arch_src=ref_arch_src,
+            use_torch_compile=True,
+            torch_compile_backend="inductor",
+            torch_compile_options="default",
+            device=device,
+            verbose=False,
+            log_file=log_file)
+        
+    print(f"Generated fusion logs for all {num_problems_in_level} Level 2 programs")
+
+@pydra.main(base=FusionConfig)
+def main(config: FusionConfig):
+    level_num = config.level_num
+    problem_id = config.problem_id
+    verbose = config.verbose
+
+    os.makedirs(TORCH_COMPILE_LOG_DIR, exist_ok=True)    
+
+    # DEBUG: generate a single log file
+    # test_measure_particular_program(level_num=level_num, problem_id=problem_id, verbose=verbose)
+
+    # Generate for all Level 2
+    generate_fusion_logs_for_all_level_programs(level_num=level_num)
 
 if __name__ == "__main__":
-    # DEBUG and simple testing
-    # test_measure_particular_program(2, 28)
-
-    os.makedirs(TORCH_COMPILE_LOG_DIR, exist_ok=True)
-    
-    test_measure_particular_program(level_num=2, problem_id=80)
+    main()
 
 
 
