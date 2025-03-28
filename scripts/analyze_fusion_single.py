@@ -1,5 +1,6 @@
 import os
-os.environ["TORCH_LOGS_OUT"] = "torch_compile_output.log"
+import pydra
+from pydra import REQUIRED, Config
 
 import torch
 import numpy as np
@@ -17,7 +18,6 @@ import json
 from tqdm import tqdm
 
 
-
 from torch._dynamo import explain
 from torch.fx import symbolic_trace
 
@@ -25,6 +25,12 @@ from torch.fx import symbolic_trace
 """
 Understand PyTorch Fusion
 
+Usage
+# TORCH_LOGS_OUT="test.log" TORCH_LOGS="output_code" python3 ...
+# might no need explicit env variable setting
+
+TODO:
+- TVM backend <-- this has to be built from source somehow which is not very ideal
 """
 
 REPO_TOP_PATH = os.path.abspath(
@@ -37,6 +43,7 @@ KERNEL_BENCH_PATH = os.path.join(REPO_TOP_PATH, "KernelBench")
 
 TIMING_DIR = os.path.join(REPO_TOP_PATH, "results", "timing")
 
+TORCH_COMPILE_LOG_DIR = os.path.join(REPO_TOP_PATH, "results", "level_2_torch_compile_logs")
 
 def fetch_ref_arch_from_dataset(dataset: list[str], 
                                 problem_id: int) -> tuple[str, str, str]:
@@ -131,6 +138,7 @@ def get_torch_compiled_model(
         torch_compile_options: str="default",
         device: torch.device="cuda:0",
         verbose: bool = False,
+        log_file: str="torch_compile_output_default.log",
 ) -> dict:
     """
     Get Torch Compiled Model
@@ -141,9 +149,17 @@ def get_torch_compiled_model(
     )
 
     # set environment variables for torch compile logging
-
+    os.environ["TORCH_LOGS"] = "output_code"
+    os.environ["TORCH_LOGS_OUT"] = log_file
+    
+    # Update torch logging settings
     torch._logging.set_logs(output_code=True)
-    # os.environ["TORCH_LOGS"] = "output_code"
+    
+    # Optionally, for more detailed logging:
+    # set_logs(output_code=True, graph_code=True, aot=True)
+    
+    # Force reload the logging configuration
+    torch._logging._init_logs()
 
 
     try:
@@ -178,7 +194,7 @@ def get_torch_compiled_model(
             model = model.cuda(device=device)
             torch.cuda.synchronize(device=device)
 
-            # explain the model
+            # explain the model, haven't figure out how to use this directly
             # explaination = explain(model, *inputs)
 
             # import pdb; pdb.set_trace()
@@ -188,172 +204,13 @@ def get_torch_compiled_model(
             )
             runtime_stats = get_timing_stats(elapsed_times, device=device)
 
-            # if verbose:
-            #     print(f"{ref_arch_name} {runtime_stats}")
-            
+            if verbose:
+                print(f"Torch Compile Log File: {log_file}")
+
             return model
     except Exception as e:
         print(f"[Eval] Error in Measuring Performance: {e}")
 
-
-
-
-
-def get_torch_compiled_model_tvm(
-        ref_arch_name: str,
-        ref_arch_src: str, 
-        use_torch_compile: bool = False,
-        torch_compile_backend: str="tvm", 
-        torch_compile_options: str="default",
-        device: torch.device="cuda:0",
-        verbose: bool = False,
-) -> dict:
-    """
-    Get Torch Compiled Model
-    """
-    context = {}
-    Model, get_init_inputs, get_inputs = load_original_model_and_inputs(
-        ref_arch_src, context
-    )
-
-    try:
-        with torch.no_grad():
-            torch.cuda.synchronize(device=device)
-            set_seed(42)
-            inputs = get_inputs()
-            set_seed(42)
-            init_inputs = get_init_inputs()
-            inputs = [
-                x.cuda(device=device) if isinstance(x, torch.Tensor) else x
-                for x in inputs
-            ]
-            init_inputs = [
-                x.cuda(device=device) if isinstance(x, torch.Tensor) else x
-                for x in init_inputs
-            ]
-
-            # Initialize PyTorch model, use this for eager mode execution
-            model = Model(*init_inputs)
-
-
-            if use_torch_compile:
-                print(f"Using torch.compile to compile model {ref_arch_name} with {torch_compile_backend} backend and {torch_compile_options} mode")
-                model = torch.compile(model, backend="tvm")
-            else:
-                print(f"Using PyTorch Eager Execution on {ref_arch_name}")
-
-
-            # just run it forward            
-            model = model.cuda(device=device)
-            torch.cuda.synchronize(device=device)
-
-            # explain the model
-
-            elapsed_times = time_execution_with_cuda_event(
-                model, *inputs, num_trials=1, verbose=verbose, device=device
-            )
-            runtime_stats = get_timing_stats(elapsed_times, device=device)
-
-            # if verbose:
-            #     print(f"{ref_arch_name} {runtime_stats}")
-            
-            return model
-    except Exception as e:
-        print(f"[Eval] Error in Measuring Performance: {e}")
-
-
-def get_torch_dag(
-        ref_arch_name: str,
-        ref_arch_src: str, 
-        use_torch_compile: bool = False,
-        torch_compile_backend: str="inductor", 
-        torch_compile_options: str="default",
-        device: torch.device="cuda:0",
-        verbose: bool = False,
-) -> dict:
-    """
-    Get Torch Compiled Model
-    """
-    context = {}
-    Model, get_init_inputs, get_inputs = load_original_model_and_inputs(
-        ref_arch_src, context
-    )
-
-    # set environment variables for torch compile logging
-
-    torch._logging.set_logs(output_code=True)
-    # os.environ["TORCH_LOGS"] = "output_code"
-
-
-    try:
-        with torch.no_grad():
-            torch.cuda.synchronize(device=device)
-            set_seed(42)
-            inputs = get_inputs()
-            set_seed(42)
-            init_inputs = get_init_inputs()
-            inputs = [
-                x.cuda(device=device) if isinstance(x, torch.Tensor) else x
-                for x in inputs
-            ]
-            init_inputs = [
-                x.cuda(device=device) if isinstance(x, torch.Tensor) else x
-                for x in init_inputs
-            ]
-
-            # Initialize PyTorch model, use this for eager mode execution
-            model = Model(*init_inputs)
-
-            # Symbolic tracing frontend - captures the semantics of the module
-            symbolic_traced: torch.fx.GraphModule = symbolic_trace(model)
-
-            # High-level intermediate representation (IR) - Graph representation
-            print(symbolic_traced.graph)
-            print(symbolic_traced.graph.print_tabular())
-            
-
-            # just run it forward            
-            model = model.cuda(device=device)
-            torch.cuda.synchronize(device=device)
-
-            # explain the model
-            # explaination = explain(model, *inputs)
-
-            # import pdb; pdb.set_trace()
-
-            elapsed_times = time_execution_with_cuda_event(
-                model, *inputs, num_trials=1, verbose=verbose, device=device
-            )
-            runtime_stats = get_timing_stats(elapsed_times, device=device)
-
-            # if verbose:
-            #     print(f"{ref_arch_name} {runtime_stats}")
-            
-            return model
-    except Exception as e:
-        print(f"[Eval] Error in Measuring Performance: {e}")
-
-
-def test_get_dag_representation_particular_program(level_num: int, problem_id: int):
-    """
-    Get the DAG representation of the model
-    """
-    device = torch.device("cuda:0")
-
-    PROBLEM_DIR = os.path.join(KERNEL_BENCH_PATH, "level" + str(level_num))
-    dataset = construct_problem_dataset_from_problem_dir(PROBLEM_DIR)
-
-    ref_arch_path, ref_arch_name, ref_arch_src = fetch_ref_arch_from_dataset(dataset, problem_id)
-
-    get_torch_dag(
-        ref_arch_name=ref_arch_name,
-        ref_arch_src=ref_arch_src,
-        use_torch_compile=True,
-        torch_compile_backend="inductor",
-        torch_compile_options="default",
-        device=device,
-        verbose=False)
-    # import pdb; pdb.set_trace()
 
 
 
@@ -368,35 +225,27 @@ def test_measure_particular_program(level_num: int, problem_id: int):
 
     ref_arch_path, ref_arch_name, ref_arch_src = fetch_ref_arch_from_dataset(dataset, problem_id)
 
-    model = get_torch_compiled_model_tvm(
+    log_file = os.path.join(TORCH_COMPILE_LOG_DIR, "{}.log".format(ref_arch_name))
+    
+    model = get_torch_compiled_model(
         ref_arch_name=ref_arch_name,
         ref_arch_src=ref_arch_src,
         use_torch_compile=True,
-        torch_compile_backend="tvm",
+        torch_compile_backend="inductor",
         torch_compile_options="default",
         device=device,
-        verbose=False)
-    
-    # import pdb; pdb.set_trace()
+        verbose=False,
+        log_file=log_file)
 
 
 if __name__ == "__main__":
     # DEBUG and simple testing
     # test_measure_particular_program(2, 28)
 
-    log_name = "test_torch_compile.log"
+    os.makedirs(TORCH_COMPILE_LOG_DIR, exist_ok=True)
     
     test_measure_particular_program(level_num=2, problem_id=80)
-    # test_get_dag_representation_particular_program(level_num=2, problem_id=80)
 
 
-    # Random debuging
-    # get_torch_compile_triton(2, 12)
-    # record_baseline_times()
-
-    # run_profile(2, 43)
-    # get_time(2, 43, torch_compile=False)
-    # get_time(2, 43, torch_compile=True)
 
 
-# TORCH_LOGS_OUT="test.log" TORCH_LOGS="output_code" python3 ...
