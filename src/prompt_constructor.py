@@ -346,8 +346,23 @@ def prompt_generate_custom_cuda_from_prompt_template(ref_arch_src: str) -> str:
 
     return prompt_generate_custom_cuda(arch, example_arch, example_new_arch)
 
+def prompt_generate_prompt_with_hardware_info_from_default(ref_arch_src: str, gpu_name: str) -> str:
+    """
+    Similar to prompt_generate_custom_cuda_from_prompt_template, 
+    but with hardware information for the given GPU
+    Example of Model is the default example of element-wise addition
+    """
 
-def prompt_generate_prompt_with_hardware_info_from_template(ref_arch_src: str, gpu_name: str) -> str:
+    return prompt_generate_prompt_with_hardware_info_from_template(
+                                        arch_path="model_ex_add.py",
+                                        new_arch_path="model_new_ex_add.py",
+                                        ref_arch_src=ref_arch_src,
+                                        gpu_name=gpu_name,
+                                        new_arch_comments="",
+                                        problem_inst_comments="")
+
+
+def prompt_generate_prompt_with_hardware_info_from_template(arch_path: str, new_arch_path: str, ref_arch_src: str, gpu_name: str, new_arch_comments: str, problem_inst_comments: str) -> str:
     """
     Similar to prompt_generate_custom_cuda_from_prompt_template, 
     but with hardware information for the given GPU
@@ -358,10 +373,10 @@ def prompt_generate_prompt_with_hardware_info_from_template(ref_arch_src: str, g
 
     # path to prompt template, show an example of Model (torch specifications) and ModelNew (torch + custom CUDA kernels)
     example_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/prompts/model_ex_add.py"
+        REPO_TOP_PATH, f"src/prompts/{arch_path}"
     )
     example_new_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/prompts/model_new_ex_add.py"
+        REPO_TOP_PATH, f"src/prompts/{new_arch_path}"
     )
 
     gpu_spec_file_path = os.path.join(REPO_TOP_PATH, f"src/prompts/hardware/gpu_specs.py")
@@ -375,16 +390,18 @@ def prompt_generate_prompt_with_hardware_info_from_template(ref_arch_src: str, g
                                         gpu_name=gpu_name, 
                                         example_arch_src=example_arch, 
                                         example_new_arch_src=example_new_arch, 
-                                        gpu_spec_info_src=gpu_spec_info
-                                        )
-    
+                                        gpu_spec_info_src=gpu_spec_info,
+                                        new_arch_comments=new_arch_comments,
+                                        problem_inst_comments=problem_inst_comments)
 
 
 def prompt_generate_prompt_with_hardware_info(ref_arch_src: str, 
                                               gpu_name: str, 
                                               example_arch_src: str, 
                                               example_new_arch_src: str, 
-                                              gpu_spec_info_src: str) -> str:
+                                              gpu_spec_info_src: str,
+                                              new_arch_comments: str,
+                                              problem_inst_comments: str) -> str:
     """
     Generate a prompt with hardware information for the given GPU
     gpu_spec_info_src: str of the gpu spec src file
@@ -413,7 +430,8 @@ def prompt_generate_prompt_with_hardware_info(ref_arch_src: str,
         Here's an example to show you the syntax of inline embedding custom CUDA operators in torch: The example given architecture is: \n
         ``` \n
         {example_arch_src}
-        ``` \n
+        ```
+        {new_arch_comments} \n
         The example new arch with custom CUDA kernels looks like this: 
         ```
         {example_new_arch_src}
@@ -453,13 +471,8 @@ Here are some best practices for writing CUDA kernels on GPU: \n\n"""
     
 
     prompt += PROBLEM_INSTRUCTION
+    prompt += problem_inst_comments
     return prompt
-
-
-    return Nonoe
-
-
-
 
 
 def prompt_fix_compile(ref_arch_src, custom_cuda, metadata):
@@ -503,12 +516,12 @@ def prompt_fix_correctness(ref_arch_src, custom_cuda, metadata):
     return prompt
 
 def main():
-    gpu_name = "L40S"
+    gpu_name = "A100"
 
 
     ref_arch_src = read_file(os.path.join(KERNEL_BENCH_PATH, f"level1/19_ReLU.py"))
     assert len(ref_arch_src) > 0, "ref_arch_src is empty"
-    prompt = prompt_generate_prompt_with_hardware_info_from_template(ref_arch_src, gpu_name)
+    prompt = prompt_generate_prompt_with_hardware_info_from_default(ref_arch_src, gpu_name)
     print(prompt)
     # Write prompt to temp file
     temp_file_path = os.path.join(REPO_TOP_PATH, "scratch", "prompt_draft.txt")
