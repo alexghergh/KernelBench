@@ -1,6 +1,6 @@
 import os
 os.environ["TORCH_LOGS_OUT"] = "torch_compile_output.log"
-
+import onnx
 import torch
 import numpy as np
 from src.eval import (
@@ -23,7 +23,9 @@ from torch.fx import symbolic_trace
 
 
 """
-Understand PyTorch Fusion
+Get ONNX Representation of Model
+
+You need to pip install onnx onnxruntime
 
 """
 
@@ -157,7 +159,102 @@ def test_get_dag_representation_particular_program(level_num: int, problem_id: i
     print(f"DAG Graph for {ref_arch_name} in tabular format")
     print(dag_graph.print_tabular())
 
+def get_onnx_representation(
+        ref_arch_name: str,
+        ref_arch_src: str, 
+        output_path: str,
+        device: torch.device="cuda:0",
+        verbose: bool = False,
+) -> None:
+    """
+    Get ONNX Representation of Model
+    """
+    print(f"Getting ONNX representation of {ref_arch_name}")
+
+    context = {}
+    Model, get_init_inputs, get_inputs = load_original_model_and_inputs(
+        ref_arch_src, context
+    )
+
+    try:
+        with torch.no_grad():
+            # Setup inputs
+            set_seed(42)
+            inputs = get_inputs()
+            init_inputs = get_init_inputs()
+            inputs = [
+                x.cuda(device=device) if isinstance(x, torch.Tensor) else x
+                for x in inputs
+            ]
+            init_inputs = [
+                x.cuda(device=device) if isinstance(x, torch.Tensor) else x
+                for x in init_inputs
+            ]
+
+            # Initialize model
+            model = Model(*init_inputs)
+            model = model.cuda(device=device)
+            
+            # Export to ONNX
+            # see guide at https://pytorch.org/docs/stable/onnx.html
+            torch.onnx.export(
+                model,                  # model to export
+                tuple(inputs),          # inputs of the model,
+                output_path,            # filename of the ONNX model
+                input_names=["input"],  # Rename inputs for the ONNX model
+                dynamo=True             # True or False to select the exporter to use
+            )
+            
+            if verbose:
+                print(f"Saved ONNX model to {output_path}")
+            
+    except Exception as e:
+        print(f"[Eval] Error in ONNX Export: {e}")
+
+
+def visualize_onnx(onnx_path: str):
+    """
+    Load and visualize ONNX model in different formats
+    """
+    # Load the ONNX model
+    model = onnx.load(onnx_path)
+    
+    print("\n1. Text Format (Proto):")
+    print(model)
+    
+    print("\n2. Graph Structure:")
+    graph = model.graph
+    print(f"Inputs: {[input.name for input in graph.input]}")
+    print(f"Outputs: {[output.name for output in graph.output]}")
+    print("\nNodes:")
+    for node in graph.node:
+        print(f"Op Type: {node.op_type}")
+        print(f"  Inputs: {node.input}")
+        print(f"  Outputs: {node.output}")
+        print(f"  Attributes: {[attr.name for attr in node.attribute]}")
+        print()
+
+    print("\n3. JSON Format:")
+    # Convert to JSON (need to handle some data types)
+    model_dict = {
+        "nodes": [{
+            "op_type": node.op_type,
+            "inputs": list(node.input),
+            "outputs": list(node.output),
+            "attributes": [attr.name for attr in node.attribute]
+        } for node in graph.node],
+        "inputs": [input.name for input in graph.input],
+        "outputs": [output.name for output in graph.output]
+    }
+    print(json.dumps(model_dict, indent=2))
+
+
 if __name__ == "__main__":
+    """
+    Get the ONNX representation of a particular model
+    """
+
+
     device = torch.device("cuda:0")
 
     # from add example
@@ -165,24 +262,32 @@ if __name__ == "__main__":
     ref_arch_name = "model_ex_pytorch"
     ref_arch_src = read_file(ref_arch_path)
 
-    # From KernelBench
-    # level_num = 2
-    # problem_id = 80
 
+    # from KernelBench
+    # level_num = 2
+
+    # problem_id = 80
     # PROBLEM_DIR = os.path.join(KERNEL_BENCH_PATH, "level" + str(level_num))
     # dataset = construct_problem_dataset_from_problem_dir(PROBLEM_DIR)
 
     # ref_arch_path, ref_arch_name, ref_arch_src = fetch_ref_arch_from_dataset(dataset, problem_id)
 
-    dag_graph = get_torch_dag(
+
+    # Create output directory if it doesn't exist
+    output_dir = os.path.join(REPO_TOP_PATH, "results", "representations")
+    os.makedirs(output_dir, exist_ok=True)
+    
+    output_path = os.path.join(output_dir, f"{ref_arch_name}.onnx")
+
+    get_onnx_representation(
         ref_arch_name=ref_arch_name,
         ref_arch_src=ref_arch_src,
+        output_path=output_path,
         device=device,
-        verbose=False)
+        verbose=True)
+    
+    visualize_onnx(output_path)
+    
+    
 
-    print(f"DAG Graph for {ref_arch_name}")
-    print(dag_graph)
-
-    print(f"DAG Graph for {ref_arch_name} in tabular format")
-    print(dag_graph.print_tabular())
     

@@ -1,0 +1,11 @@
+This program should demonstrate element-wise tensor addition.
+This prorgam takes two input tensors of the same shape and performs element-wise addition between them. Each input tensor has a batch size of 1 and contains 128 features. 
+
+The model has no learnable parameters and simply acts as a direct addition operation between its inputs. Both input tensors are expected to be on the GPU (CUDA device).
+
+Operation: Element-wise addition
+Input shapes: (1, 128) for both inputs
+Output shape: (1, 128)
+Parameters: None
+Device: CUDA (GPU)
+Purpose: Simple demonstration of tensor addition

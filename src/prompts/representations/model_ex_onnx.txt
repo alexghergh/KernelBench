@@ -1,0 +1,184 @@
+ir_version: 9
+producer_name: "pytorch"
+producer_version: "2.5.0+cu124"
+graph {
+  node {
+    input: "input"
+    input: "b"
+    output: "add"
+    name: "node_Add_0"
+    op_type: "Add"
+    metadata_props {
+      key: "namespace"
+      value: ": builtins.Model/add: aten.add.Tensor"
+    }
+    metadata_props {
+      key: "pkg.torch.onnx.class_hierarchy"
+      value: "[\'builtins.Model\', \'aten.add.Tensor\']"
+    }
+    metadata_props {
+      key: "pkg.torch.onnx.fx_node"
+      value: "%add : [num_users=1] = call_function[target=torch.ops.aten.add.Tensor](args = (%a, %b), kwargs = {})"
+    }
+    metadata_props {
+      key: "pkg.torch.onnx.name_scopes"
+      value: "[\'\', \'add\']"
+    }
+    metadata_props {
+      key: "pkg.torch.onnx.stack_trace"
+      value: "  File \"<string>\", line 11, in forward\n"
+    }
+  }
+  name: "main_graph"
+  input {
+    name: "input"
+    type {
+      tensor_type {
+        elem_type: 1
+        shape {
+          dim {
+            dim_value: 1
+          }
+          dim {
+            dim_value: 128
+          }
+        }
+      }
+    }
+    metadata_props {
+      key: "pkg.torch.export.graph_signature.InputSpec.kind"
+      value: "USER_INPUT"
+    }
+    metadata_props {
+      key: "pkg.torch.export.graph_signature.InputSpec.persistent"
+      value: "None"
+    }
+    metadata_props {
+      key: "pkg.torch.onnx.original_node_name"
+      value: "a"
+    }
+  }
+  input {
+    name: "b"
+    type {
+      tensor_type {
+        elem_type: 1
+        shape {
+          dim {
+            dim_value: 1
+          }
+          dim {
+            dim_value: 128
+          }
+        }
+      }
+    }
+    metadata_props {
+      key: "pkg.torch.export.graph_signature.InputSpec.kind"
+      value: "USER_INPUT"
+    }
+    metadata_props {
+      key: "pkg.torch.export.graph_signature.InputSpec.persistent"
+      value: "None"
+    }
+  }
+  output {
+    name: "add"
+    type {
+      tensor_type {
+        elem_type: 1
+        shape {
+          dim {
+            dim_value: 1
+          }
+          dim {
+            dim_value: 128
+          }
+        }
+      }
+    }
+    metadata_props {
+      key: "pkg.torch.export.graph_signature.OutputSpec.kind"
+      value: "USER_OUTPUT"
+    }
+  }
+  metadata_props {
+    key: "pkg.torch.export.ExportedProgram.graph_signature"
+    value: "ExportGraphSignature(input_specs=[InputSpec(kind=<InputKind.USER_INPUT: 1>, arg=TensorArgument(name=\'a\'), target=None, persistent=None), InputSpec(kind=<InputKind.USER_INPUT: 1>, arg=TensorArgument(name=\'b\'), target=None, persistent=None)], output_specs=[OutputSpec(kind=<OutputKind.USER_OUTPUT: 1>, arg=TensorArgument(name=\'add\'), target=None)])"
+  }
+  metadata_props {
+    key: "pkg.torch.export.ExportedProgram.range_constraints"
+    value: "{}"
+  }
+}
+opset_import {
+  domain: ""
+  version: 18
+}
+opset_import {
+  domain: "pkg.onnxscript.torch_lib.common"
+  version: 1
+}
+functions {
+  name: "Rank"
+  input: "input"
+  output: "return_val"
+  node {
+    input: "input"
+    output: "tmp"
+    name: "n0"
+    op_type: "Shape"
+  }
+  node {
+    input: "tmp"
+    output: "return_val"
+    name: "n1"
+    op_type: "Size"
+  }
+  doc_string: "Take the rank of the input tensor."
+  opset_import {
+    domain: ""
+    version: 18
+  }
+  domain: "pkg.onnxscript.torch_lib.common"
+}
+functions {
+  name: "IsScalar"
+  input: "input"
+  output: "return_val"
+  node {
+    input: "input"
+    output: "tmp"
+    name: "n0"
+    op_type: "Shape"
+  }
+  node {
+    input: "tmp"
+    output: "tmp_0"
+    name: "n1"
+    op_type: "Size"
+  }
+  node {
+    output: "tmp_1"
+    name: "n2"
+    op_type: "Constant"
+    attribute {
+      name: "value_int"
+      i: 0
+      type: INT
+    }
+  }
+  node {
+    input: "tmp_0"
+    input: "tmp_1"
+    output: "return_val"
+    name: "n3"
+    op_type: "Equal"
+  }
+  doc_string: "Return whether the input has rank 0, or is a scalar."
+  opset_import {
+    domain: ""
+    version: 18
+  }
+  domain: "pkg.onnxscript.torch_lib.common"
+}

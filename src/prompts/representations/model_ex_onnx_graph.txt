@@ -1,0 +1,15 @@
+Here is a graph representation of the PyTorch operator.
+
+Inputs: ['input', 'b']
+Outputs: ['add']
+
+Nodes:
+Op Type: Add
+  Inputs: ['input', 'b']
+  Outputs: ['add']
+  Attributes: []
+
+
+To be specific, the input we will provide will be:
+  a: a tensor of shape (1, 128) of FP32
+  b: a tensor of shape (1, 128) of FP32

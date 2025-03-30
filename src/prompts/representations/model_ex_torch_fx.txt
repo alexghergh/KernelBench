@@ -1,0 +1,12 @@
+Here is a DAG representation of the program in tabular form
+opcode         name    target                   args    kwargs
+-------------  ------  -----------------------  ------  --------
+placeholder    a       a                        ()      {}
+placeholder    b       b                        ()      {}
+call_function  add     <built-in function add>  (a, b)  {}
+output         output  output                   (add,)  {}
+
+
+To be specific, the input we will provide will be:
+  a: a tensor of shape (1, 128) of FP32
+  b: a tensor of shape (1, 128) of FP32
