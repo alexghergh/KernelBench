@@ -1,0 +1,158 @@
+Here is a graph representation of the PyTorch program.
+
+Inputs: ['input']
+Outputs: ['group_norm']
+
+Nodes:
+Op Type: ConvTranspose
+  Inputs: ['input', 'conv_transpose.weight', 'conv_transpose.bias']
+  Outputs: ['convolution']
+  Attributes: ['auto_pad', 'dilations', 'group', 'output_padding', 'pads', 'strides']
+
+Op Type: _aten_gelu_approximate_none
+  Inputs: ['convolution']
+  Outputs: ['gelu']
+  Attributes: []
+
+Op Type: Constant
+  Inputs: []
+  Outputs: ['val_0']
+  Attributes: ['value_ints']
+
+Op Type: Constant
+  Inputs: []
+  Outputs: ['val_1']
+  Attributes: ['value']
+
+Op Type: Reshape
+  Inputs: ['val_1', 'val_0']
+  Outputs: ['val_2']
+  Attributes: ['allowzero']
+
+Op Type: Constant
+  Inputs: []
+  Outputs: ['val_3']
+  Attributes: ['value_ints']
+
+Op Type: Concat
+  Inputs: ['val_3', 'val_2', 'val_0']
+  Outputs: ['val_4']
+  Attributes: ['axis']
+
+Op Type: Reshape
+  Inputs: ['gelu', 'val_4']
+  Outputs: ['val_5']
+  Attributes: ['allowzero']
+
+Op Type: Constant
+  Inputs: []
+  Outputs: ['val_6']
+  Attributes: ['value_float']
+
+Op Type: CastLike
+  Inputs: ['val_6', 'gelu']
+  Outputs: ['val_7']
+  Attributes: []
+
+Op Type: Expand
+  Inputs: ['val_7', 'val_2']
+  Outputs: ['val_8']
+  Attributes: []
+
+Op Type: Constant
+  Inputs: []
+  Outputs: ['val_9']
+  Attributes: ['value_float']
+
+Op Type: CastLike
+  Inputs: ['val_9', 'gelu']
+  Outputs: ['val_10']
+  Attributes: []
+
+Op Type: Expand
+  Inputs: ['val_10', 'val_2']
+  Outputs: ['val_11']
+  Attributes: []
+
+Op Type: InstanceNormalization
+  Inputs: ['val_5', 'val_8', 'val_11']
+  Outputs: ['val_12']
+  Attributes: ['epsilon']
+
+Op Type: Shape
+  Inputs: ['gelu']
+  Outputs: ['val_13']
+  Attributes: ['start']
+
+Op Type: Reshape
+  Inputs: ['val_12', 'val_13']
+  Outputs: ['val_14']
+  Attributes: ['allowzero']
+
+Op Type: Constant
+  Inputs: []
+  Outputs: ['val_15']
+  Attributes: ['value_int']
+
+Op Type: Constant
+  Inputs: []
+  Outputs: ['val_16']
+  Attributes: ['value']
+
+Op Type: Sub
+  Inputs: ['val_16', 'val_15']
+  Outputs: ['val_17']
+  Attributes: []
+
+Op Type: Range
+  Inputs: ['val_15', 'val_17', 'val_15']
+  Outputs: ['val_18']
+  Attributes: []
+
+Op Type: Unsqueeze
+  Inputs: ['group_norm.weight', 'val_18']
+  Outputs: ['val_19']
+  Attributes: []
+
+Op Type: Unsqueeze
+  Inputs: ['group_norm.bias', 'val_18']
+  Outputs: ['val_20']
+  Attributes: []
+
+Op Type: CastLike
+  Inputs: ['val_19', 'val_14']
+  Outputs: ['val_21']
+  Attributes: []
+
+Op Type: Mul
+  Inputs: ['val_14', 'val_21']
+  Outputs: ['val_22']
+  Attributes: []
+
+Op Type: CastLike
+  Inputs: ['val_20', 'val_22']
+  Outputs: ['val_23']
+  Attributes: []
+
+Op Type: Add
+  Inputs: ['val_22', 'val_23']
+  Outputs: ['group_norm']
+  Attributes: []
+
+
+
+To be specific, here are the dimensions and configs in this prorgam 
+batch_size = 128
+in_channels = 32
+out_channels = 64
+height, width = 32, 32
+kernel_size = 4
+stride = 2
+groups = 8
+num_groups = 8
+
+We will initialize the model with:
+    batch_size, in_channels, height, width
+
+We will provide inputs of shape:
+  input: tensor of shape (in_channels, out_channels, kernel_size, stride, groups, num_groups) of FP32

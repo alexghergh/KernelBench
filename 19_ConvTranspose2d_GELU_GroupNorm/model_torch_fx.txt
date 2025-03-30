@@ -1,0 +1,25 @@
+Here is a DAG representation of the program in tabular form
+
+opcode         name            target                    args               kwargs
+-------------  --------------  ------------------------  -----------------  --------
+placeholder    x               x                         ()                 {}
+call_module    conv_transpose  conv_transpose            (x,)               {}
+call_function  gelu            <built-in function gelu>  (conv_transpose,)  {}
+call_module    group_norm      group_norm                (gelu,)            {}
+output         output          output                    (group_norm,)      {}
+
+To be specific, here are the dimensions and configs in this prorgam 
+batch_size = 128
+in_channels = 32
+out_channels = 64
+height, width = 32, 32
+kernel_size = 4
+stride = 2
+groups = 8
+num_groups = 8
+
+We will initialize the model with:
+    batch_size, in_channels, height, width
+
+We will provide inputs of shape:
+  input (x): tensor of shape (in_channels, out_channels, kernel_size, stride, groups, num_groups) of FP32

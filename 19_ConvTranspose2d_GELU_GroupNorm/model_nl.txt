@@ -1,0 +1,19 @@
+This program demonstrates a sequence of transposed convolution, GELU activation, and group normalization operations.
+This program takes a 4D input tensor and processes it through three sequential operations. The input has a batch size of 128, 32 input channels, and spatial dimensions of 32x32.
+
+The model applies:
+1. ConvTranspose2d: Upsampling operation that doubles spatial dimensions while increasing channels from 32 to 64 using 4x4 kernels and stride 2
+2. GELU: Non-linear activation that smoothly scales inputs using Gaussian Error function
+3. GroupNorm: Normalizes features by dividing 64 channels into 8 groups, normalizing each group independently
+
+Operation: ConvTranspose2d → GELU → GroupNorm
+Input shape: (128, 32, 32, 32)
+Output shape: (128, 64, 64, 64)
+Key parameters:
+- kernel_size = 4
+- stride = 2
+- num_groups = 8
+- in_channels = 32
+- out_channels = 64
+Device: CUDA (GPU)
+Purpose: Upsampling with normalization in decoder-style architecture

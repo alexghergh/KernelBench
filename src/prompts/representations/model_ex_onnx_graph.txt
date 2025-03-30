@@ -1,4 +1,4 @@
-Here is a graph representation of the PyTorch operator.
+Here is a graph representation of the PyTorch program.
 
 Inputs: ['input', 'b']
 Outputs: ['add']
