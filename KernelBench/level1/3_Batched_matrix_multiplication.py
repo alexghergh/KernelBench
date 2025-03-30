@@ -19,7 +19,7 @@ class Model(nn.Module):
         Returns:
             C: Output tensor of shape (batch_size, m, n).
         """
-        return torch.bmm(A, B)
+        return torch.bmm(A.to(torch.half), B.to(torch.half)).float()
 
 batch_size = 128
 m = 128

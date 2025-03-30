@@ -4,14 +4,16 @@ import torch.nn.functional as F
 from torch.utils.cpp_extension import load_inline
 
 # Define the custom CUDA kernel for async_memcpy
-# https://docs.nvidia.com/cuda/cuda-c-programming-guide/#with-memcpy-async
+# https://docs.nvidia.com/cuda/cuda-c-programming-guide/#asynchronous-data-copies-using-cuda-barrier
 source = """
 #include <torch/extension.h>
 #include <cuda_runtime.h>
 #include <cooperative_groups.h>
-#include <cooperative_groups/memcpy_async.h>
+#include <cuda/barrier>
 
-__global__ void with_memcpy_async(float* global_out, float const* global_in, size_t size, size_t batch_sz) {
+using namespace cooperative_groups;
+
+__global__ void memcpy_async_with_barrier(float* global_out, float const* global_in, size_t size, size_t batch_sz) {
     // For simplicity, use built-in indices instead of cooperative group indices if not launched cooperatively.
     auto grid = cooperative_groups::this_grid();
     auto block = cooperative_groups::this_thread_block();
@@ -19,6 +21,13 @@ __global__ void with_memcpy_async(float* global_out, float const* global_in, siz
 
     // Allocate shared memory as floats.
     extern __shared__ float shared[];
+    
+    // Create a synchronization object (C++20 barrier)
+    __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
+    if (block.thread_rank() == 0) {
+        init(&barrier, block.size()); // Friend function initializes barrier
+    }
+    block.sync();
 
     size_t local_idx = block.thread_rank();  // Each thread's index within the block
 
@@ -28,9 +37,9 @@ __global__ void with_memcpy_async(float* global_out, float const* global_in, siz
         size_t global_idx = block_batch_idx + local_idx;
 
         // Whole thread-group cooperatively copies whole batch to shared memory:
-        cooperative_groups::memcpy_async(block, shared, global_in + block_batch_idx, sizeof(int) * block.size());
+        cuda::memcpy_async(block, shared, global_in + block_batch_idx, sizeof(int) * block.size(), barrier);
 
-        cooperative_groups::wait(block); // Joins all threads, waits for all copies to complete
+        barrier.arrive_and_wait(); // Waits for all copies to complete
 
         if (global_idx < size) {
             global_out[global_idx] = shared[local_idx] * 2;
@@ -57,7 +66,7 @@ torch::Tensor async_cuda(torch::Tensor a) {
     // Calculate required shared memory size (one float per thread)
     size_t sharedMemSize = blockDim.x * sizeof(float);
 
-    with_memcpy_async<<<gridDim, blockDim, sharedMemSize>>>(global_out, global_in, size, batch_sz);
+    memcpy_async_with_barrier<<<gridDim, blockDim, sharedMemSize>>>(global_out, global_in, size, batch_sz);
 
     return out;
 }

@@ -27,7 +27,7 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: Output 4D tensor of shape (b, i, j, k)
         """
-        return torch.einsum("bijl,lk->bijk", A, B)
+        return torch.einsum("bijl,lk->bijk", A.to(torch.half), B.to(torch.half)).float()
 
 # Test code
 b = 16

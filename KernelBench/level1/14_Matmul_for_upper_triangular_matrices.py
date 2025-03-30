@@ -19,7 +19,7 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: The product of A and B, also an upper triangular matrix of shape (N, N).
         """
-        return torch.triu(torch.matmul(A, B))
+        return torch.triu(torch.matmul(A.to(torch.half), B.to(torch.half))).float()
 
 N = 4096
 

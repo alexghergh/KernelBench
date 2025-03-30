@@ -19,7 +19,7 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (N, M, L), resulting from the multiplication of A and B along the last dimension of A.
         """
-        return torch.matmul(A, B)
+        return torch.matmul(A.to(torch.half), B.to(torch.half)).float()
 
 N = 16
 M = 1024

@@ -20,7 +20,7 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: The result of the matrix multiplication. Shape: (N, M).
         """
-        return torch.diag(A) @ B
+        return (torch.diag(A.to(torch.half)) @ B.to(torch.half)).float()
 
 M = 4096
 N = 4096

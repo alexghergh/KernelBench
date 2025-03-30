@@ -19,7 +19,7 @@ class Model(nn.Module):
         Returns:
             Output vector of shape (M, 1).
         """
-        return torch.matmul(A, B)
+        return torch.matmul(A.to(torch.half), B.to(torch.half)).float()
 
 M = 256
 K = 131072

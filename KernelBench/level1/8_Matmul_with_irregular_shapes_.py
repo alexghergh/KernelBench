@@ -19,7 +19,7 @@ class Model(nn.Module):
         Returns:
             C: Output tensor with shape (M, N).
         """
-        return torch.matmul(A, B)
+        return torch.matmul(A.to(torch.half), B.to(torch.half)).float()
 
 M = 8205
 K = 2949

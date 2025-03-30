@@ -26,10 +26,10 @@ The Reference could be either
 ====================================================
 Usage:
 1. PyTorch reference is a local file
-python3 scripts/run_and_check.py ref_origin=local ref_arch_src_path=src/prompts/model_ex_add.py kernel_src_path=src/prompts/model_new_ex_add.py
+python3 scripts/run_and_check_modal.py ref_origin=local ref_arch_src_path=src/prompts/model_ex_add.py kernel_src_path=src/prompts/model_new_ex_add.py
 
 2. PyTorch refernece is a kernelbench problem
-python3 scripts/run_and_check.py ref_origin=kernelbench level=<level> problem_id=<problem_id> kernel_src_path=<path to model-generated kernel>
+python3 scripts/run_and_check_modal.py ref_origin=kernelbench level=<level> problem_id=<problem_id> kernel_src_path=<path to model-generated kernel>
 ====================================================
 
 """

@@ -19,7 +19,7 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: The result of matrix multiplication C of shape (N, N).
         """
-        return torch.tril(torch.matmul(A, B))
+        return torch.tril(torch.matmul(A.to(torch.half), B.to(torch.half))).float()
 
 M = 4096
 

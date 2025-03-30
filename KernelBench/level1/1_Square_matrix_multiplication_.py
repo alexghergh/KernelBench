@@ -19,7 +19,7 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: Output matrix C of shape (N, N).
         """
-        return torch.matmul(A, B)
+        return torch.matmul(A.to(torch.half), B.to(torch.half)).float()
 
 N = 2048
 
