@@ -73,12 +73,35 @@ class EvalConfig(Config):
         self.log_generated_kernel = False
         self.log_eval_result = False
 
+        self.temperature = 0.0
 
     def verbose_logging(self):
         self.log = True
         self.log_prompt = True
         self.log_generated_kernel = True
         self.log_eval_result = True
+
+    def deepseek_v3(self):
+        self.server_type = "deepseek"
+        self.model_name = "deepseek-chat"
+        self.is_reasoning_model = False
+
+    def openai_4o(self):
+        self.server_type = "openai"
+        self.model_name = "gpt-4o-2024-08-06"
+        self.is_reasoning_model = False
+
+        
+    def openai_o1(self):
+        self.server_type = "openai"
+        self.model_name = "o1-2024-12-17"
+        self.is_reasoning_model = True
+        
+
+    def deepseek_r1(self):
+        self.server_type = "deepseek"
+        self.model_name = "deepseek-reasoner"
+        self.is_reasoning_model = True
 
     def __repr__(self):
         return f"EvalConfig({self.to_dict()})"
@@ -144,34 +167,38 @@ def main(config: EvalConfig):
                                                         temperature=config.temperature,
                                                         max_tokens=config.max_tokens,
                                                         verbose=config.verbose,
-                                                        time_generation=True)
+                                                        time_generation=True,
+                                                        is_reasoning_model=config.is_reasoning_model)
     
     print(f"Generating prompt for representation: {config.representation}")
 
     EX_PROMPT_DIR = os.path.join(REPO_TOP_DIR, "src", "prompts", "representations")
     PROBLEM_PROMPT_DIR = os.path.join(REPO_TOP_DIR, "19_ConvTranspose2d_GELU_GroupNorm")
     if config.representation == "pytorch":
-        ref_arch_src = read_file(os.path.join(PROBLEM_PROMPT_DIR, "model_pytorch.py"))
+        ref_arch_src_for_prompt = read_file(os.path.join(PROBLEM_PROMPT_DIR, "model_pytorch.py"))
         example_arch_src = read_file(os.path.join(EX_PROMPT_DIR, "model_ex_pytorch.py"))
     elif config.representation == "nl":
-        ref_arch_src = read_file(os.path.join(PROBLEM_PROMPT_DIR, "model_nl.txt"))
+        ref_arch_src_for_prompt = read_file(os.path.join(PROBLEM_PROMPT_DIR, "model_nl.txt"))
         example_arch_src = read_file(os.path.join(EX_PROMPT_DIR, "model_ex_nl.txt"))
     elif config.representation == "onnx":
-        ref_arch_src = read_file(os.path.join(PROBLEM_PROMPT_DIR, "model_onnx_graph.txt"))
+        ref_arch_src_for_prompt = read_file(os.path.join(PROBLEM_PROMPT_DIR, "model_onnx_graph.txt"))
         example_arch_src = read_file(os.path.join(EX_PROMPT_DIR, "model_ex_onnx_graph.txt"))
     elif config.representation == "torch_fx":
-        ref_arch_src = read_file(os.path.join(PROBLEM_PROMPT_DIR, "model_torch_fx.txt"))
+        ref_arch_src_for_prompt = read_file(os.path.join(PROBLEM_PROMPT_DIR, "model_torch_fx.txt"))
         example_arch_src = read_file(os.path.join(EX_PROMPT_DIR, "model_ex_torch_fx.txt"))
-    
+    else:
+        raise ValueError(f"Invalid representation: {config.representation}")
     example_new_arch_src = read_file(os.path.join(EX_PROMPT_DIR, "model_new_ex.py"))
 
 
-    custom_cuda_prompt = prompt_generate_alternative_representation(ref_arch_src, 
+    custom_cuda_prompt = prompt_generate_alternative_representation(ref_arch_src_for_prompt, 
                                                                     example_arch_src, 
                                                                     example_new_arch_src, 
                                                                     config.representation)
+    
+    
     if config.log_prompt:
-        with open(os.path.join(config.logdir, f"prompt_level_{config.level}_problem_{config.problem_id}_repr_{config.representation}.txt"), "w") as f:
+        with open(os.path.join(config.logdir, f"prompt_level_{config.level}_problem_{config.problem_id}.txt"), "w") as f:
             f.write(custom_cuda_prompt)
 
     # Query server with constructed prompt
@@ -182,8 +209,11 @@ def main(config: EvalConfig):
     
     # this should be optional
     if config.log:
-        with open(os.path.join(config.logdir, f"generated_kernel_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
+        with open(os.path.join(config.logdir, f"generated_kernel_level_{config.level}_problem_{config.problem_id}_repr_{config.representation}_model_{config.model_name}.py"), "w") as f:
             f.write(custom_cuda)
+
+    # for eval
+    ref_arch_src = read_file(os.path.join(PROBLEM_PROMPT_DIR, "model_pytorch.py"))
 
     # 3. Evaluate Kernel
     # NOTE: no need to wrap around process here as only a single sample
@@ -195,7 +225,7 @@ def main(config: EvalConfig):
     print(f"Evaluation result for level {config.level} problem {config.problem_id}:\n{kernel_exec_result}")
 
     if config.log:
-        with open(os.path.join(config.logdir, f"eval_result_level_{config.level}_problem_{config.problem_id}_repr_{config.representation}.txt"), "a") as f:
+        with open(os.path.join(config.logdir, f"eval_result_level_{config.level}_problem_{config.problem_id}_repr_{config.representation}_model_{config.model_name}.txt"), "a") as f:
             f.write(f"Problem Name: {problem_name}\n")
             f.write(str(kernel_exec_result))
 

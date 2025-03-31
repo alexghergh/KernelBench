@@ -255,7 +255,6 @@ def query_server(
         if is_reasoning_model:
             assert "o1" in model or "o3" in model, "Only support o1 and o3 for now"
             print(f"Using OpenAI reasoning model: {model} with reasoning effort {reasoning_effort}")
-            print(f"Using OpenAI reasoning model: {model} with reasoning effort {reasoning_effort}")
             response = client.chat.completions.create(
                 model=model,
                 messages=[
@@ -264,6 +263,7 @@ def query_server(
                 reasoning_effort=reasoning_effort,
             )
         else:
+            print(f"Using OpenAI normal model: {model} with temperature {temperature}")
             response = client.chat.completions.create(
                 model=model,
                 messages=[

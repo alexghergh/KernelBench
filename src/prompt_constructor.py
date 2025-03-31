@@ -79,7 +79,7 @@ def prompt_generate_alternative_representation(
     prompt = PROBLEM_STATEMENT
 
     alt_repr_instruction = """
-    Optimize the architecture described above with custom CUDA operators! Name your optimized output architecture ModelNew (PyTorch + custom CUDA operators). Output the new code in codeblocks. Please generate real code, NOT pseudocode, make sure the code compiles and is fully functional. Just output the new model code, no other text, and NO testing code! \n
+    Optimize the architecture described above with custom CUDA operators! Name your optimized output architecture ModelNew (PyTorch + custom CUDA operators using load_inline). Output the new code in codeblocks. Please generate real code, NOT pseudocode, make sure the code compiles and is fully functional. Just output the new model code, no other text, and NO testing code! \n
     """
     ex_description = ""
     if repr_option == "pytorch":
@@ -95,6 +95,7 @@ def prompt_generate_alternative_representation(
 
     if example_arch_src != "" and example_new_arch_src != "":
         prompt += f"""
+        You don't have to replace every operator with CUDA, just replace the ones you think makes most sense to optimize.
         Here's an example to show you {ex_description}: The example given architecture is: \n
         ``` \n
         {example_arch_src}

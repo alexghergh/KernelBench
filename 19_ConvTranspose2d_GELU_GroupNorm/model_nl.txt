@@ -6,6 +6,8 @@ The model applies:
 2. GELU: Non-linear activation that smoothly scales inputs using Gaussian Error function
 3. GroupNorm: Normalizes features by dividing 64 channels into 8 groups, normalizing each group independently
 
+The model needs initialization with (in_channels, out_channels, kernel_size, stride, groups, num_groups) in addition to self
+
 Operation: ConvTranspose2d → GELU → GroupNorm
 Input shape: (128, 32, 32, 32)
 Output shape: (128, 64, 64, 64)
@@ -15,5 +17,6 @@ Key parameters:
 - num_groups = 8
 - in_channels = 32
 - out_channels = 64
+- groups = 8
 Device: CUDA (GPU)
 Purpose: Upsampling with normalization in decoder-style architecture

@@ -152,7 +152,7 @@ groups = 8
 num_groups = 8
 
 We will initialize the model with:
-    batch_size, in_channels, height, width
+  in_channels, out_channels, kernel_size, stride, groups, num_groups
 
 We will provide inputs of shape:
-  input: tensor of shape (in_channels, out_channels, kernel_size, stride, groups, num_groups) of FP32
+  input (x):  (batch_size, in_channels, height, width) tensor of shape of FP32
