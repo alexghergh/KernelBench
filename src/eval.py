@@ -288,7 +288,115 @@ def build_compile_cache_with_capturing(
 
     return returncode, stdout.decode('utf-8'), stderr.decode('utf-8')
 
+def run_kernel(
+    original_model_src: str,
+    custom_model_src: str,
+    seed_num: int = 42,
+    trials: int = 20,
+    device: torch.device = torch.cuda.current_device() if torch.cuda.is_available() else None,
+) -> KernelExecResult:
+    """
+    Run the kernel and return the result
+    """
+    # TODO: check device is busy
+    assert torch.cuda.is_available(), "CUDA is not available, cannot run Eval"
+    torch.set_printoptions(
+        precision=4,  # Decimal places
+        threshold=10,  # Total number of elements before truncating
+        edgeitems=3,  # Number of elements at beginning and end of dimensions
+        linewidth=80,  # Maximum width before wrapping
+    )
 
+    # set CUDA device
+    torch.cuda.set_device(device)
+
+    context = {}
+
+    Model, get_init_inputs, get_inputs = load_original_model_and_inputs(
+        original_model_src, context
+    )
+    set_seed(seed_num)  # set seed for reproducible input
+    init_inputs = get_init_inputs()
+    init_inputs = [
+        x.cuda(device=device) if isinstance(x, torch.Tensor) else x for x in init_inputs
+    ]
+
+    with torch.no_grad():
+        set_seed(seed_num)  # set seed for reproducible weights
+        original_model = Model(*init_inputs)
+        assert hasattr(original_model, "forward")
+
+    metadata = {}  # for storing result metadata
+    metadata["hardware"] = torch.cuda.get_device_name(device=device)
+    metadata["device"] = str(device)  # for debugging
+
+    # this is where compilation happens
+    try:
+        os.environ["TORCH_USE_CUDA_DSA"] = "1"  # compile with device side assertion
+        # add hash for later to distinguish between multi-turn kernels
+        ModelNew = load_custom_model(custom_model_src, context)
+        torch.cuda.synchronize(device=device)  # not sure if this is too much
+    except Exception as e:
+        print(
+            f"Failed to compile custom CUDA kernel: Record as compilation failure. \nError: {e}"
+        )
+        # TODO: add metadata for compilation error (how to we get the compilation error message?)
+
+        if "lock" in str(e) or "No such file or directory" in str(e):
+            # this is a lock file error, likely due to concurrent compilation
+            # this does not necessarily mean the compilation failed, but we should retry
+            print(
+                f"[Eval] Lock file error during compilation, Please retry. Error: {e}"
+            )
+            graceful_eval_cleanup(context, device)
+            return None
+        else:
+            metadata["compilation_error"] = e
+            graceful_eval_cleanup(context, device)
+            return KernelExecResult(
+                compiled=False, metadata=metadata
+            )  # skip further steps
+
+    # at this point we passed compilation
+    try:
+        with torch.no_grad():
+            set_seed(seed_num)  # set seed for reproducible weights
+            custom_model = ModelNew(*init_inputs)
+            assert hasattr(custom_model, "forward")
+            torch.cuda.synchronize(device=device)
+    except RuntimeError as e:
+        print(
+            f"Failed to load custom CUDA kernel; Compiled but not able to run, count as runtime error. \nError: {e}"
+        )
+        # TODO: add metadata for runtime error e.g. error in launching kernel, illegal memory access, ...
+        graceful_eval_cleanup(context, device)
+        metadata["runtime_error"] = e
+        return KernelExecResult(
+            compiled=True, correctness=False, metadata=metadata
+        )  # skip further steps
+
+    kernel_exec_result = None
+
+    try:
+        kernel_exec_result = run_kernel_dont_check_correctness(
+            original_model,
+            custom_model,
+            get_inputs,
+            metadata=metadata,
+            device=device,
+            seed=seed_num,
+            num_trials=trials,
+        )
+    except Exception as e:
+        # TODO: add metadata for runtime error e.g. error in launching kernel, illegal memory access, ...
+        metadata["runtime_error"] = e
+        kernel_exec_result = KernelExecResult(
+            compiled=True, correctness=False, metadata=metadata
+        )
+    
+    graceful_eval_cleanup(context, device)
+    print(f"Kernel execution result: {kernel_exec_result}")
+    return kernel_exec_result
 
 
 def eval_kernel_against_ref(
@@ -539,6 +647,55 @@ def time_execution_with_cuda_event(
         elapsed_times.append(elapsed_time_ms)
 
     return elapsed_times
+
+def run_kernel_dont_check_correctness(
+    original_model_instance: nn.Module,
+    new_model_instance: nn.Module,
+    get_inputs_fn: callable,
+    metadata: dict,
+    device: torch.device = None,
+    seed: int = 42,
+    num_trials: int = 20,
+) -> KernelExecResult:
+    """
+    Run the kernel and don't return anything
+    """
+
+    # Generate num_correct_trials seeds deterministically from the initial seed
+    torch.manual_seed(seed)
+    correctness_trial_seeds = [
+        torch.randint(0, 2**32 - 1, (1,)).item() for _ in range(num_trials)
+    ]
+
+    with torch.no_grad():
+
+        for trial in range(num_trials):
+            trial_seed = correctness_trial_seeds[trial]
+
+            set_seed(trial_seed)
+            inputs = get_inputs_fn()
+            inputs = [
+                x.cuda(device=device) if isinstance(x, torch.Tensor) else x
+                for x in inputs
+            ]
+
+            set_seed(trial_seed)
+            model_new = new_model_instance.cuda(device=device)
+
+            try:
+                output_new = model_new(*inputs)
+                torch.cuda.synchronize(device=device)
+
+            except Exception as e:
+                print("[Error] Exception happens during kernel run")
+                print(f"Error in launching kernel for ModelNew: {e}")
+
+                metadata = register_and_format_exception(
+                    "runtime_error", e, metadata, truncate=True
+                )
+
+    return metadata
+    
 
 
 def run_and_check_correctness(
