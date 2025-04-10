@@ -42,8 +42,8 @@ class EvalConfig(Config):
         self.gpu_arch = ["Ada"]
 
         # Inference config
-        self.server_type = "deepseek"
-        self.model_name = "deepseek-coder"
+        self.server_type = "openai"
+        self.model_name = "gpt-4o-2024-11-20"
         self.max_tokens = 4096
         self.temperature = 0.0
 
@@ -51,10 +51,10 @@ class EvalConfig(Config):
         self.logdir = os.path.join(REPO_TOP_DIR, "results/eval_logs")
         self.verbose = False
 
-        self.log = False
+        self.log = True
         self.log_prompt = False
-        self.log_generated_kernel = False
-        self.log_eval_result = False
+        self.log_generated_kernel = True
+        self.log_eval_result = True
 
     def verbose_logging(self):
         self.log = True
