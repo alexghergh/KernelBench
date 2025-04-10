@@ -143,3 +143,9 @@ MIT. Check `LICENSE.md` for more details.
       url={https://arxiv.org/abs/2502.10517}, 
 }
 ```
+
+
+## IGNORE BELOW
+```
+python3 scripts/eval_single_problem.py run_name="run1" dataset_src="local" level=1 problem_id=1
+```
