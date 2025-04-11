@@ -16,6 +16,10 @@ def main():
         # "dram__bytes_read.sum.peak_sustained_active",
         # "dram__bytes_read.sum.peak_sustained_elapsed",
         # "dram__bytes_write.sum.peak_sustained_active",
+        "l1tex__t_sector_hit_rate.pct",
+        "l1tex__t_sectors.avg",
+        "l1tex__t_sectors_lookup_hit.avg",
+        "l1tex__t_sectors_lookup_miss.avg"
     ]
     metrics_str = ",".join(metrics)
     ncu_command = f"sudo -E env PATH=\"$PATH\" /usr/local/cuda-12.2/bin/ncu --target-processes all --launch-skip 5 --launch-count 1 --kernel-name \"matmul_kernel\" --metrics {metrics_str} python3 scripts/run_single_arch.py"
