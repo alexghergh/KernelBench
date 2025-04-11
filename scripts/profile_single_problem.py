@@ -9,6 +9,7 @@ def run_ncu(ncu_command: str):
 
 def main():
     metrics = [
+        # dram
         "dram__bytes_read.sum",
         "dram__bytes_write.sum",
         "dram__throughput.avg.pct_of_peak_sustained_elapsed",
@@ -16,10 +17,20 @@ def main():
         # "dram__bytes_read.sum.peak_sustained_active",
         # "dram__bytes_read.sum.peak_sustained_elapsed",
         # "dram__bytes_write.sum.peak_sustained_active",
+        # cache
         "l1tex__t_sector_hit_rate.pct",
-        "l1tex__t_sectors.avg",
-        "l1tex__t_sectors_lookup_hit.avg",
-        "l1tex__t_sectors_lookup_miss.avg"
+        "l1tex__t_sectors.sum",
+        "l1tex__t_sectors_lookup_hit.sum",
+        "l1tex__t_sectors_lookup_miss.sum",
+        "lts__t_sector_hit_rate.pct",
+        "lts__t_sectors.sum",
+        "lts__t_sectors_lookup_hit.sum",
+        "lts__t_sectors_lookup_miss.sum",
+        # smem TODO
+        # hardware util
+        "gpu__cycles_active.sum",
+        "gpu__cycles_elapsed.sum",
+        "gpu__time_duration_measured_wallclock.avg",
     ]
     metrics_str = ",".join(metrics)
     ncu_command = f"sudo -E env PATH=\"$PATH\" /usr/local/cuda-12.2/bin/ncu --target-processes all --launch-skip 5 --launch-count 1 --kernel-name \"matmul_kernel\" --metrics {metrics_str} python3 scripts/run_single_arch.py"

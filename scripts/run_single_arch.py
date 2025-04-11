@@ -24,7 +24,7 @@ class Model(nn.Module):
         \"\"\"
         return torch.matmul(A, B)
 
-N = 2048
+N = 4096
 
 def get_inputs():
     A = torch.randn(N, N)
