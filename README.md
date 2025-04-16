@@ -155,5 +155,7 @@ export PATH="$HOME/.local/bin:$PATH"
 source ~/.bashrc
 python3 scripts/eval_single_problem.py run_name="run1" dataset_src="local" level=1 problem_id=1
 sudo -E env PATH="$PATH" /usr/local/cuda-12.2/bin/ncu --target-processes all --launch-skip 5 --launch-count 1 --kernel-name "matmul_kernel" --metrics dram__bytes_read.sum,dram__bytes_write.sum,dram__throughput.avg.pct_of_peak_sustained_elapsed,dram__throughput.avg.pct_of_peak_sustained_active python3 scripts/run_single_arch.py
+sudo -E env PATH="$PATH" /usr/local/cuda-12.2/bin/ncu --target-processes all --launch-skip 5 --launch-count 1 --kernel-name "matmul_kernel" --set full --export myreport.ncu-rep python3 scripts/run_single_arch.py
 python3 scripts/profile_single_problem.py
+scp -i ~/.ssh/id_rsa ubuntu@185.216.21.63:/home/ubuntu/KernelBench/matmul_kernel.ncu-rep ~/Downloads 
 ```

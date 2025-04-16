@@ -32,8 +32,12 @@ def main():
         "gpu__cycles_elapsed.sum",
         "gpu__time_duration_measured_wallclock.avg",
     ]
-    metrics_str = ",".join(metrics)
-    ncu_command = f"sudo -E env PATH=\"$PATH\" /usr/local/cuda-12.2/bin/ncu --target-processes all --launch-skip 5 --launch-count 1 --kernel-name \"matmul_kernel\" --metrics {metrics_str} python3 scripts/run_single_arch.py"
+
+    # metrics_str = ",".join(metrics)
+    # ncu_command = f"sudo -E env PATH=\"$PATH\" /usr/local/cuda-12.2/bin/ncu --target-processes all --launch-skip 5 --launch-count 1 --kernel-name \"matmul_kernel\" --metrics {metrics_str} python3 scripts/run_single_arch.py"
+    # run_ncu(ncu_command)
+
+    ncu_command = "sudo -E env PATH=\"$PATH\" /usr/local/cuda-12.2/bin/ncu --target-processes all --launch-skip 5 --launch-count 1 --kernel-name \"matmul_kernel\" --set full --export matmul_kernel.ncu-rep python3 scripts/run_single_arch.py"
     run_ncu(ncu_command)
 
 if __name__ == "__main__":
