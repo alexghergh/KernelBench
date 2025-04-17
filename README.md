@@ -69,6 +69,7 @@ KernelBench/
 conda create --name kernel-bench python=3.10
 conda activate kernel-bench
 pip install -r requirements.txt
+pip install torch --index-url https://download.pytorch.org/whl/rocm6.2.4
 pip install -e . 
 ```
 

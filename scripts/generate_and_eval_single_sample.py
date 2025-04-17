@@ -39,11 +39,11 @@ class EvalConfig(Config):
         self.eval_mode = "local"
         # Construct this from mapping from architecture name to torch cuda arch list in the future
         # you can either specify SM version or just use the name
-        self.gpu_arch = ["Ada"]
+        self.gpu_arch = [""]
 
         # Inference config
-        self.server_type = "deepseek"
-        self.model_name = "deepseek-coder"
+        self.server_type = "openai"
+        self.model_name = "gpt-4o"
         self.max_tokens = 4096
         self.temperature = 0.0
 
@@ -51,10 +51,10 @@ class EvalConfig(Config):
         self.logdir = os.path.join(REPO_TOP_DIR, "results/eval_logs")
         self.verbose = False
 
-        self.log = False
-        self.log_prompt = False
-        self.log_generated_kernel = False
-        self.log_eval_result = False
+        self.log = True
+        self.log_prompt = True
+        self.log_generated_kernel = True
+        self.log_eval_result = True
 
     def verbose_logging(self):
         self.log = True
