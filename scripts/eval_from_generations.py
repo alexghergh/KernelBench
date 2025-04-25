@@ -406,7 +406,7 @@ def main(config: EvalConfig):
     print(f"Evaluating 1 sample each for level {config.level} problems: {problem_id_range}")
 
     run_dir = os.path.join(config.runs_dir, config.run_name)
-    eval_file_path = os.path.join(run_dir, f"eval_results.json")
+    eval_file_path = os.path.join(run_dir, f"eval_results_mi250.json")
 
 
     # set GPU arch to configure what target to build for
