@@ -658,11 +658,6 @@ def sample(shape, mode="random"):
         idx = int(torch.empty((), dtype=torch.int64).random_()) % len(_DEFAULT_RANDOM_POOL)
         _, fn = _DEFAULT_RANDOM_POOL[idx]
         return fn(shape)
-"""
-    if mode == "target":
-        # Randomly pick one of the predefined edge cases (no generator/yield).
-        key = random.choice(list(_TARGETED_CASES.keys()))
-        return _TARGETED_CASES[key](shape)
 
     # Explicit distribution name
     pool = dict(_DEFAULT_RANDOM_POOL)
@@ -670,5 +665,24 @@ def sample(shape, mode="random"):
         raise ValueError(f"Unknown distribution {mode}")
     return pool[mode](shape)
 
-        """
+_original_torch_randn      = torch.randn
+_original_torch_randn_like = torch.randn_like
 
+def _randn_patched(*size, **kwargs):
+    # normalise *size → shape tuple
+    shape = size[0] if len(size) == 1 and isinstance(size[0], (tuple, torch.Size)) else size
+    device        = kwargs.pop("device", None)
+    dtype         = kwargs.pop("dtype",  None)
+    requires_grad = kwargs.pop("requires_grad", False)
+
+    t = sample(shape, mode="random")
+    if dtype is not None:  t = t.to(dtype)
+    if device is not None: t = t.to(device)
+    if requires_grad:      t.requires_grad_(True)
+    return t
+
+def _randn_like_patched(input, **kwargs):
+    return _randn_patched(*input.shape, **kwargs)
+
+torch.randn      = _randn_patched
+torch.randn_like = _randn_like_patched
