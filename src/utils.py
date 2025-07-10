@@ -665,24 +665,67 @@ def sample(shape, mode="random"):
         raise ValueError(f"Unknown distribution {mode}")
     return pool[mode](shape)
 
-_original_torch_randn      = torch.randn
-_original_torch_randn_like = torch.randn_like
+# NOTE -------------------------------------------------------------
+# The global monkey-patch of torch.randn/torch.randn_like has been
+# DISABLED.  Instead, use rand_mix / rand_mix_like (or torch.rand_mix)
+# when you need inputs drawn from the mixed distribution pool.
+# ------------------------------------------------------------------
+# _original_torch_randn      = torch.randn
+# _original_torch_randn_like = torch.randn_like
+#
+# def _randn_patched(*size, **kwargs):
+#     # normalise *size → shape tuple
+#     shape = size[0] if len(size) == 1 and isinstance(size[0], (tuple, torch.Size)) else size
+#     device        = kwargs.pop("device", None)
+#     dtype         = kwargs.pop("dtype",  None)
+#     requires_grad = kwargs.pop("requires_grad", False)
+#
+#     t = sample(shape, mode="random")
+#     if dtype is not None:  t = t.to(dtype)
+#     if device is not None: t = t.to(device)
+#     if requires_grad:      t.requires_grad_(True)
+#     return t
+#
+# def _randn_like_patched(input, **kwargs):
+#     return _randn_patched(*input.shape, **kwargs)
+#
+# torch.randn      = _randn_patched
+# torch.randn_like = _randn_like_patched
 
-def _randn_patched(*size, **kwargs):
+# ------------------------------------------------------------------
+# Public helper: rand_mix / rand_mix_like
+# ------------------------------------------------------------------
+
+def rand_mix(*size, dist: str = "random", device=None, dtype=None, requires_grad: bool = False):
+    """Return a tensor drawn from a chosen distribution (or randomly chosen).
+
+    Parameters
+    ----------
+    *size : int or tuple
+        Dimensions of the output tensor (same semantics as ``torch.randn``).
+    dist : str, optional
+        • "random"   – randomly cycle through the default pool defined above.
+        • "target"   – pick from the specialised _TARGETED_CASES pool.
+        • any key in the default pool ("normal", "uniform", "laplace", ...).
+    device, dtype, requires_grad : any
+        Forwarded to ``Tensor.to`` / ``Tensor.requires_grad_`` for convenience.
+    """
     # normalise *size → shape tuple
     shape = size[0] if len(size) == 1 and isinstance(size[0], (tuple, torch.Size)) else size
-    device        = kwargs.pop("device", None)
-    dtype         = kwargs.pop("dtype",  None)
-    requires_grad = kwargs.pop("requires_grad", False)
 
-    t = sample(shape, mode="random")
-    if dtype is not None:  t = t.to(dtype)
-    if device is not None: t = t.to(device)
-    if requires_grad:      t.requires_grad_(True)
+    t = sample(shape, mode=dist)
+    if dtype is not None:
+        t = t.to(dtype)
+    if device is not None:
+        t = t.to(device)
+    if requires_grad:
+        t.requires_grad_(True)
     return t
 
-def _randn_like_patched(input, **kwargs):
-    return _randn_patched(*input.shape, **kwargs)
+def rand_mix_like(tensor: torch.Tensor, dist: str = "random", **kwargs):
+    """rand_mix variant that infers shape from *tensor*."""
+    return rand_mix(*tensor.shape, dist=dist, **kwargs)
 
-torch.randn      = _randn_patched
-torch.randn_like = _randn_like_patched
+# Register convenience aliases under torch namespace (does not shadow existing fns)
+setattr(torch, "rand_mix", rand_mix)
+setattr(torch, "rand_mix_like", rand_mix_like)

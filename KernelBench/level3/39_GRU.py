@@ -36,7 +36,7 @@ hidden_size = 256
 num_layers = 6
 
 def get_inputs():
-    return [torch.randn(seq_len, batch_size, input_size)]
+    return [torch.rand_mix(seq_len, batch_size, input_size)]
 
 def get_init_inputs():
     return [input_size, hidden_size, num_layers]
