@@ -1,0 +1,7 @@
+{
+  "error": "compile_or_runtime",
+  "message": "CUDA_ERROR_INVALID_PTX: a PTX JIT compilation failed",
+  "grid": 80,
+  "block": 256,
+  "llm_out": "```ptx\n.version 7.0\n.target sm_50\n.address_size 64\n\n.visible .entry my_kernel(\n    .param .u64 input_ptr,\n    .param .u64 output_ptr,\n    .param .u32 numel\n)\n{\n    .reg .pred  %p<2>;\n    .reg .b32   %r<6>;\n    .reg .b64   %rd<7>;\n    .reg .f32   %f<2>;\n\n    // Load kernel parameters\n    ld.param.u64 %rd1, [input_ptr];\n    ld.param.u64 %rd2, [output_ptr];\n    ld.param.u32 %r1, [numel];\n\n    // Compute global thread index: gid = blockIdx.x * blockDim.x + threadIdx.x\n    mov.u32  %r2, %ctaid.x;\n    mov.u32  %r3, %ntid.x;      // blockDim.x (256)\n    mov.u32  %r4, %tid.x;\n    mad.lo.u32 %r5, %r2, %r3, %r4;\n\n    // Bounds check: if gid >= numel, exit\n    setp.ge.u32 %p1, %r5, %r1;\n    @%p1 bra DONE;\n\n    // Compute byte offsets\n    mul.wide.u32 %rd3, %r5, 4;      // sizeof(float) = 4\n    add.u64      %rd4, %rd1, %rd3;  // input address\n    add.u64      %rd5, %rd2, %rd3;  // output address\n\n    // Load input element\n    ld.global.f32 %f1, [%rd4];\n\n    // Placeholder for complex ops: currently identity\n    mov.f32 %f2, %f1;\n\n    // Store result\n    st.global.f32 [%rd5], %f2;\n\nDONE:\n    ret;\n}\n```\n\nLAUNCH = (grid_x, 256)"
+}

@@ -1,0 +1,7 @@
+{
+  "error": "compile_or_runtime",
+  "message": "CUDA_ERROR_INVALID_PTX: a PTX JIT compilation failed",
+  "grid": 32768,
+  "block": 256,
+  "llm_out": "```ptx\n.version 7.0\n.target sm_50\n.address_size 64\n\n.visible .entry my_kernel(\n    .param .u64 input_ptr,\n    .param .u64 output_ptr\n)\n{\n    .reg .pred  %p<2>;\n    .reg .b32   %r<6>;\n    .reg .b64   %rd<6>;\n    .reg .f32   %f<8>;\n\n    // Load kernel parameters\n    ld.param.u64 %rd0, [input_ptr];     // input pointer\n    ld.param.u64 %rd1, [output_ptr];    // output pointer\n\n    // Compute global index: idx = blockIdx.x * blockDim.x + threadIdx.x\n    mov.u32 %r0, %ntid.x;               // blockDim.x\n    mov.u32 %r1, %ctaid.x;              // blockIdx.x\n    mov.u32 %r2, %tid.x;                // threadIdx.x\n    mad.lo.u32 %r3, %r1, %r0, %r2;      // idx\n\n    // offset = idx * sizeof(float)\n    mul.wide.u32 %rd2, %r3, 4;\n\n    // Load input value x\n    add.u64 %rd3, %rd0, %rd2;\n    ld.global.f32 %f0, [%rd3];\n\n    // Swish activation: y = x * sigmoid(x) = x / (1 + exp(-x))\n    neg.f32         %f1, %f0;              // -x\n    mul.f32         %f2, %f1, 1.442695f;   // scale = -x / ln(2)\n    ex2.approx.f32  %f3, %f2;              // exp(-x) (approx)\n    add.f32         %f4, %f3, 1.0;         // denom = 1 + exp(-x)\n    rcp.approx.f32  %f5, %f4;              // 1 / denom\n    mul.f32         %f6, %f0, %f5;         // y = x * sigmoid(x)\n\n    // Store result\n    add.u64 %rd4, %rd1, %rd2;\n    st.global.f32 [%rd4], %f6;\n\n    ret;\n}\n```\nLAUNCH = (32768, 256)"
+}

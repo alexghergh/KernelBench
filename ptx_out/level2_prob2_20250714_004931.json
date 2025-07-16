@@ -1,0 +1,7 @@
+{
+  "error": "compile_or_runtime",
+  "message": "CUDA_ERROR_INVALID_PTX: a PTX JIT compilation failed",
+  "grid": 524288,
+  "block": 256,
+  "llm_out": "```ptx\n.version 7.0\n.target sm_50\n.address_size 64\n\n.visible .entry my_kernel(\n    .param .u64 input_ptr,\n    .param .u64 output_ptr\n)\n{\n    .reg .pred   %p<2>;\n    .reg .b32    %r<4>;\n    .reg .b64    %rd<6>;\n    .reg .f32    %f<2>;\n\n    // Load input and output base addresses from parameter list\n    ld.param.u64  %rd0, [input_ptr];\n    ld.param.u64  %rd1, [output_ptr];\n\n    // Compute global thread index: idx = blockIdx.x * blockDim.x + threadIdx.x\n    mov.u32       %r0, %tid.x;\n    mov.u32       %r1, %ctaid.x;\n    mov.u32       %r2, %ntid.x;\n    mad.lo.u32    %r3, %r1, %r2, %r0;      // 32-bit global index\n    cvt.u64.u32   %rd2, %r3;               // extend to 64-bit\n    shl.b64       %rd3, %rd2, 2;           // byte offset (float32 \u2192 4 bytes)\n\n    // Copy element: out[idx] = in[idx]\n    add.u64       %rd4, %rd0, %rd3;\n    ld.global.f32 %f0, [%rd4];\n    add.u64       %rd4, %rd1, %rd3;\n    st.global.f32 [%rd4], %f0;\n\n    ret;\n}\n```\n\nLAUNCH = (524288, 256)"
+}

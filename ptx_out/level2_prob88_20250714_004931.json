@@ -1,0 +1,6 @@
+{
+  "correct": false,
+  "grid": 80,
+  "block": 256,
+  "llm_out": "```ptx\n.version 7.0\n.target sm_50\n.address_size 64\n\n.visible .entry my_kernel(\n    .param .u64 __input_ptr,\n    .param .u64 __output_ptr\n)\n{\n    .reg .pred  %p<2>;\n    .reg .b32   %r<8>;\n    .reg .b64   %rd<10>;\n    .reg .f32   %f<4>;\n\n    // Load kernel parameters\n    ld.param.u64  %rd1, [__input_ptr];\n    ld.param.u64  %rd2, [__output_ptr];\n\n    // Compute global thread index: idx = blockIdx.x * blockDim.x + threadIdx.x\n    mov.u32  %r1, %tid.x;        // threadIdx.x\n    mov.u32  %r2, %ctaid.x;      // blockIdx.x\n    mov.u32  %r3, %ntid.x;       // blockDim.x (256)\n    mad.lo.u32 %r4, %r2, %r3, %r1; // r4 = idx\n\n    // Convert idx to byte address (float = 4 bytes)\n    cvt.u64.u32  %rd3, %r4;\n    shl.b64      %rd3, %rd3, 2;\n\n    // Pointers to input and output elements\n    add.u64  %rd4, %rd1, %rd3;   // input address\n    add.u64  %rd5, %rd2, %rd3;   // output address\n\n    // Load, (optionally process), and store\n    ld.global.f32 %f1, [%rd4];\n    st.global.f32 [%rd5], %f1;\n\n    ret;\n}\n```\n\nLAUNCH = (grid_x, 256)"
+}

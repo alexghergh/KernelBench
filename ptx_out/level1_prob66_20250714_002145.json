@@ -1,0 +1,6 @@
+{
+  "correct": false,
+  "grid": 1,
+  "block": 256,
+  "llm_out": "```ptx\n.version 7.0\n.target sm_50\n.address_size 64\n\n.entry my_kernel(\n    .param .u64 input_ptr,\n    .param .u64 output_ptr\n)\n{\n    .reg .pred  %p<2>;\n    .reg .u32   %r<6>;\n    .reg .u64   %rd<7>;\n    .reg .f32   %f<2>;\n\n    // Compute global thread index: idx = blockIdx.x * blockDim.x + threadIdx.x\n    mov.u32  %r0, %ctaid.x;\n    mov.u32  %r1, %ntid.x;\n    mov.u32  %r2, %tid.x;\n    mul.lo.u32 %r3, %r0, %r1;\n    add.u32 %r4, %r3, %r2;          // %r4 = global linear thread index\n\n    // Load kernel parameters (base pointers)\n    ld.param.u64 %rd1, [input_ptr];\n    ld.param.u64 %rd2, [output_ptr];\n\n    // Calculate byte offset = idx * sizeof(float)\n    mul.wide.u32 %rd3, %r4, 4;      // 4 bytes per float\n\n    // Perform a simple element-wise copy: out[idx] = in[idx]\n    add.u64 %rd4, %rd1, %rd3;       // input address\n    ld.global.f32 %f0, [%rd4];\n\n    add.u64 %rd5, %rd2, %rd3;       // output address\n    st.global.f32 [%rd5], %f0;\n\n    ret;\n}\n```\n\nLAUNCH = (1, 256)"
+}

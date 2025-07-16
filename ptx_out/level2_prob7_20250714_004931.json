@@ -1,0 +1,6 @@
+{
+  "correct": false,
+  "grid": 1845120,
+  "block": 256,
+  "llm_out": "```ptx\n.version 7.0\n.target sm_75\n.address_size 64\n\n.visible .entry my_kernel(\n    .param .u64 input_ptr,\n    .param .u64 output_ptr\n)\n{\n    .reg .pred  %p<2>;\n    .reg .f32   %f<2>;\n    .reg .b32   %r<5>;\n    .reg .b64   %rd<6>;\n\n    // Load kernel parameters\n    ld.param.u64    %rd1, [input_ptr];\n    ld.param.u64    %rd2, [output_ptr];\n\n    // Compute global linear thread index\n    mov.u32         %r0, %tid.x;\n    mov.u32         %r1, %ctaid.x;\n    mov.u32         %r2, %ntid.x;\n    mad.lo.u32      %r3, %r1, %r2, %r0;      // r3 = blockIdx.x * blockDim.x + threadIdx.x\n\n    // Convert element index to byte offset (sizeof(float) = 4)\n    mul.wide.u32    %rd3, %r3, 4;\n\n    // Form final addresses\n    add.u64         %rd4, %rd1, %rd3;        // input address\n    add.u64         %rd5, %rd2, %rd3;        // output address\n\n    // Load, (compute), store\n    ld.global.f32   %f0, [%rd4];\n    st.global.f32   [%rd5], %f0;\n\n    ret;\n}\n```\nLAUNCH = (1845120, 256)"
+}

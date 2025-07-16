@@ -3,6 +3,8 @@
 ########################
 
 import multiprocessing
+from dotenv import load_dotenv
+load_dotenv()  # Load variables from .env early so query_server can see them
 import subprocess
 import re
 import random
