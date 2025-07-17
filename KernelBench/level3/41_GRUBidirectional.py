@@ -13,7 +13,8 @@ class Model(nn.Module):
         """
         super(Model, self).__init__()
         
-        self.gru = nn.GRU(input_size, hidden_size, num_layers, bias, batch_first, dropout=0, bidirectional=False)
+        self.gru = nn.GRU(input_size, hidden_size, num_layers, bias, batch_first, dropout=0, bidirectional=True)
+        self.h0 = torch.randn((num_layers * 2, batch_size, hidden_size))
     
     def forward(self, x,h0):
         """
@@ -24,7 +25,7 @@ class Model(nn.Module):
             - h_n: The hidden state for t = seq_len, shape (num_layers * num_directions, batch_size, hidden_size)
         """
         output, h_n = self.gru(x, h0)
-        return h_n
+        return output
 
 # Test code
 batch_size = 10
@@ -34,7 +35,7 @@ hidden_size = 256
 num_layers = 6
 
 def get_inputs():
-    return [torch.rand_mix(seq_len, batch_size, input_size),torch.rand_mix((num_layers, batch_size, hidden_size))]
+    return [torch.rand_mix(seq_len, batch_size, input_size),torch.rand_mix((num_layers*2, batch_size, hidden_size))]
 
 def get_init_inputs():
     return [input_size, hidden_size, num_layers]
