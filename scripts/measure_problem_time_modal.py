@@ -58,6 +58,7 @@ image = (
         "clang",
     )
     .pip_install(
+        "python-dotenv",  # required by src.utils
         "anthropic",
         "numpy",
         "openai",
@@ -191,6 +192,7 @@ def main():
     parser.add_argument("--backend", default="inductor", help="Backend for torch.compile (default: inductor)")
     parser.add_argument("--mode", default="default", help="Mode for torch.compile (default: default)")
     parser.add_argument("--gpu", default="H100", help="GPU type for Modal (default: H100)")
+    parser.add_argument("--output_file", type=str, default=None, help="Optional path to write aggregated timing results as JSON")
 
     args = parser.parse_args()
 
@@ -239,12 +241,29 @@ def main():
             gpu=args.gpu,
         )
 
-        aggregated_results[str(pid)] = result
+        aggregated_results[str(pid)] = {
+            "name": ref_arch_name,
+            "stats": result,
+        }
 
     # Pretty print aggregated results
     print("\n======================= Timing Results =======================")
     print(json.dumps(aggregated_results, indent=4))
     print("===========================================================\n")
+
+    # --------------------------------------------------------------------
+    # Optionally persist results to disk
+    # --------------------------------------------------------------------
+    if args.output_file:
+        save_path = args.output_file
+        # Create parent directory if it does not exist
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        try:
+            with open(save_path, "w") as f:
+                json.dump(aggregated_results, f, indent=4)
+            print(f"[INFO] Timing results written to {save_path}")
+        except Exception as e:
+            print(f"[WARN] Failed to write results to {save_path}: {e}")
 
 
 if __name__ == "__main__":

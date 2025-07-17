@@ -8,7 +8,7 @@ from __future__ import annotations
 import json, argparse, os, pathlib
 from datetime import datetime
 
-from generate_and_eval_single_sample_modal_ptx import run_remote
+from KernelBench.scripts.PtxWork.generate_and_eval_single_sample_modal_ptx import run_remote
 from src.dataset import construct_problem_dataset_from_problem_dir
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
