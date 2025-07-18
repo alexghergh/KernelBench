@@ -19,7 +19,7 @@ class Model(nn.Module):
         x = x + self.bias
         return x
 
-batch_size = 128
+batch_size = 64
 in_channels = 8
 out_channels = 32
 depth, height, width = 32, 64, 64
