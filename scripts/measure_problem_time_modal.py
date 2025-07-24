@@ -71,6 +71,7 @@ image = (
         "together",
         "pytest",
         "ninja",
+        "python-dotenv",  # needed to load environment variables via src.utils
         "utils",
         "einops",
     )
