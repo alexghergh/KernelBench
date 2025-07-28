@@ -4,12 +4,14 @@ import os, sys
 import torch
 import json
 import modal
+modal.enable_output()  # stream container build and runtime logs to local terminal
 
 from datasets import load_dataset
 
 #from src.dataset import construct_kernelbench_dataset
 from src.eval import eval_kernel_against_ref
 from src.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template
+from src.prompt_constructor_triton import prompt_generate_custom_triton_from_prompt_template
 from src.utils import extract_first_code, query_server, set_gpu_arch, read_file, create_inference_server_from_presets
 
 app = modal.App("eval_single_sample")
@@ -44,15 +46,15 @@ class EvalConfig(Config):
         self.eval_mode = "modal"
         # Construct this from mapping from architecture name to torch cuda arch list in the future
         # you can either specify SM version or just use the name
-        self.gpu = "L40S"
-        self.gpu_arch = ['Ada']
+        self.gpu = "H100"
+        self.gpu_arch = ['Hopper']
 
 
         # Inference config
         self.server_type = "deepseek"
         self.model_name = "deepseek-coder"
         self.max_tokens = 4096
-        self.temperature = 0.0
+        self.temperature = 1.0
         
         # Logging
         self.logdir = os.path.join(REPO_TOP_DIR, "results/eval_logs")
@@ -62,6 +64,8 @@ class EvalConfig(Config):
         self.log_prompt = False
         self.log_generated_kernel = False
         self.log_eval_result = False
+
+        self.backend = "cuda"
 
     def verbose_logging(self):
         self.log = True
@@ -99,22 +103,29 @@ image = (
         "pytest",
         "ninja",
         "utils",
+        "python-dotenv",
     )
+    # Include project code so that `import src` works inside the container
+    .add_local_dir(os.path.join(REPO_TOP_DIR, "KernelBench"), remote_path="/root/KernelBench")
+    .add_local_dir(os.path.join(REPO_TOP_DIR, "src"), remote_path="/root/src")
 )
 
-@app.cls(image=image)
+# Set a 15-minute wall-clock cap for the container
+@app.cls(image=image, timeout=900)
 class EvalFunc:
 
     @modal.method()
-    def eval_single_sample_modal(self, ref_arch_src, custom_cuda, verbose, gpu_arch):
+    def eval_single_sample_modal(self, ref_arch_src, custom_kernel, verbose, gpu_arch, backend):
         # 3. Evaluate Kernel
         # NOTE: no need to wrap around process here as only a single sample
         # see batch eval for examples of process isolation
         from src.eval import eval_kernel_against_ref
-        from src.utils import set_gpu_arch
-        set_gpu_arch(gpu_arch)
+        # Use utility function to set the GPU architecture in the modal environment
+        from src.utils import set_gpu_arch as modal_set_gpu_arch
+        modal_set_gpu_arch(gpu_arch)
         return eval_kernel_against_ref(
-            ref_arch_src, custom_cuda, verbose=verbose, measure_performance=True, num_correct_trials=5, num_perf_trials=100
+            ref_arch_src, custom_kernel, verbose=verbose, measure_performance=True, 
+            num_correct_trials=5, num_perf_trials=100, backend=backend
         )
 
 @pydra.main(base=EvalConfig)
@@ -174,26 +185,66 @@ def main(config: EvalConfig):
     
 
 
-    custom_cuda_prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
+    # Use appropriate prompt constructor based on backend
+    if config.backend == "cuda":
+        custom_prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
+    elif config.backend == "triton":
+        custom_prompt = prompt_generate_custom_triton_from_prompt_template(ref_arch_src)
+    else:
+        raise ValueError(f"Unsupported backend: {config.backend}. Must be 'cuda' or 'triton'.")
+        
     if config.log_prompt:
         with open(os.path.join(config.logdir, f"prompt_level_{config.level}_problem_{config.problem_id}.txt"), "w") as f:
-            f.write(custom_cuda_prompt)
+            f.write(custom_prompt)
 
-    # Query server with constructed prompt
-    custom_cuda = inference_server(custom_cuda_prompt)
-    custom_cuda = extract_first_code(custom_cuda, ["python", "cpp"])
-    # check LLM is able to generate custom CUDA code
-    assert custom_cuda is not None, "Custom CUDA code generation failed"
+    # Query server with constructed prompt and capture raw output
+    raw_llm_out = inference_server(custom_prompt)
+
+    # If logging is enabled, dump the raw model response so we can inspect failures
+    if not raw_llm_out:
+        error_msg = (
+            "FATAL: LLM server returned an empty response. "
+            "This is likely due to an API error, rate limiting, or content filtering. "
+            "Cannot proceed with evaluation."
+        )
+        # We raise a more informative error than the downstream assert.
+        raise ValueError(error_msg)
+    # --- END OF ADDED BLOCK ---
+
+    # If logging is enabled, dump the raw model response so we can inspect failures
+    if config.log:
+        raw_path = os.path.join(
+            config.logdir,
+            f"raw_llm_output_level_{config.level}_problem_{config.problem_id}.txt",
+        )
+        with open(raw_path, "w") as f:
+            f.write(raw_llm_out)
+
+    # Extract the first code block...
+    custom_kernel = extract_first_code(raw_llm_out, ["python", "cpp", "triton", "ptx"])
+    # check LLM is able to generate custom kernel code
+    assert custom_kernel is not None, f"Custom {config.backend} kernel code generation failed"
     
     # this should be optional
     if config.log:
         with open(os.path.join(config.logdir, f"generated_kernel_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
-            f.write(custom_cuda)
+            f.write(custom_kernel)
 
     with app.run():
-        kernel_exec_result = EvalFunc.with_options(gpu=config.gpu)().eval_single_sample_modal.remote(ref_arch_src, custom_cuda, config.verbose, gpu_arch_mapping[config.gpu])
-        
-        print(f"Evaluation result for level {config.level} problem {config.problem_id}:\n{kernel_exec_result}")
+        future = EvalFunc.with_options(gpu=config.gpu)().eval_single_sample_modal.remote(
+            ref_arch_src,
+            custom_kernel,
+            config.verbose,
+            gpu_arch_mapping[config.gpu],
+            config.backend,
+        )
+
+        # Block until the remote job finishes so build/runtime logs stream
+        kernel_exec_result = future.get()
+
+        print(
+            f"Evaluation result for level {config.level} problem {config.problem_id}:\n{kernel_exec_result}"
+        )
         
         if config.log:
             with open(os.path.join(config.logdir, f"eval_result_level_{config.level}_problem_{config.problem_id}.txt"), "a") as f:

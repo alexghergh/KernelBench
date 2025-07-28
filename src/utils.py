@@ -99,7 +99,7 @@ def query_server(
     # for reasoning models
     is_reasoning_model: bool = False, # indiactor of using reasoning models
     budget_tokens: int = 0, # for claude thinking
-    reasoning_effort: str = None, # only for o1 and o3 / more reasoning models in the future
+    reasoning_effort: str = "high", # only for o1 and o3 / more reasoning models in the future
 ):
     """
     Query various sort of LLM inference API providers
@@ -254,31 +254,41 @@ def query_server(
             )
         outputs = [choice.message.content for choice in response.choices]
     elif server_type == "openai":
-        if is_reasoning_model:
-            assert "o1" in model or "o3" in model, "Only support o1 and o3 for now"
-            print(f"Using OpenAI reasoning model: {model} with reasoning effort {reasoning_effort}")
-            print(f"Using OpenAI reasoning model: {model} with reasoning effort {reasoning_effort}")
-            response = client.chat.completions.create(
+        client = OpenAI(api_key=OPENAI_KEY)
+        model = model_name
+
+        # Auto-switch to Responses API for o*/gpt-4o* models
+        use_responses = model.startswith("o") or model.startswith("gpt-4o")
+
+        if use_responses:
+            # Responses API: use `input` and read `output_text`
+            response = client.responses.create(
                 model=model,
-                messages=[
-                    {"role": "user", "content": prompt},
+                input=prompt if isinstance(prompt, str) else [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": prompt},
                 ],
-                reasoning_effort=reasoning_effort,
+                temperature=float(temperature),
+                max_output_tokens=int(max_tokens) if max_tokens else None,
+                **({"reasoning": {"effort": reasoning_effort}} if reasoning_effort else {})
             )
+            outputs = [response.output_text or ""]
         else:
-            response = client.chat.completions.create(
+            # Legacy Chat Completions for non-o models
+            openai_kwargs = dict(
                 model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
+                    {"role": "user",   "content": prompt},
                 ],
                 stream=False,
                 temperature=temperature,
                 n=num_completions,
-                max_tokens=max_tokens,
                 top_p=top_p,
             )
-        outputs = [choice.message.content for choice in response.choices]
+            openai_kwargs["max_tokens"] = max_tokens
+            response = client.chat.completions.create(**openai_kwargs)
+            outputs = [choice.message.content for choice in response.choices]
     elif server_type == "together":
         response = client.chat.completions.create(
             model=model,
