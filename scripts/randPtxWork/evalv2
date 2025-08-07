@@ -1,0 +1,139 @@
+import os
+import modal
+
+# ---- Modal image with CUDA + Torch + Triton + CuPy ----
+CUDA_VERSION, FLAVOR, OS = "12.4.0", "devel", "ubuntu22.04"
+TAG = f"{CUDA_VERSION}-{FLAVOR}-{OS}"
+image = (
+    modal.Image.from_registry(f"nvidia/cuda:{TAG}", add_python="3.10")
+    .apt_install("git")
+    .run_commands(
+        "python -m pip install --upgrade pip",
+        # torch + triton (nightly cu121 runs fine on CUDA 12.4 base)
+        "python -m pip install --pre torch triton --index-url https://download.pytorch.org/whl/nightly/cu121",
+        # CuPy for CUDA 12
+        "python -m pip install cupy-cuda12x numpy",
+        "echo 'Env ready.'",
+    )
+    .env({"TMPDIR": "/tmp"})
+)
+
+# ---- Mount your repo so we can import ptx_runner & eval_ptx_vs_ref ----
+repo_mount = modal.Mount.from_local_dir(".", remote_path="/repo")
+
+# ---- Volume where your PTX/JSON live (same name you used earlier) ----
+vol = modal.Volume.from_name("triton-kernel-dumps", create_if_missing=True)
+
+app = modal.App("kb-ptx-eval-wrapper", image=image, mounts=[repo_mount])
+
+@app.function(gpu="A10G", volumes={"/vol": vol})
+def eval_remote(problem_file: str,
+                artifact_dir: str | None = None,
+                ptx_path: str | None = None,
+                json_path: str | None = None,
+                kernel_name: str | None = None,
+                atol: float = 1e-2,
+                rtol: float = 1e-2):
+    """
+    Runs the SAME logic as your local scripts, but on Modal GPU.
+
+    Parameters:
+      - problem_file: path relative to repo root, e.g. 'KernelBench/level1/1_Square_matrix_multiplication_.py'
+      - EITHER (artifact_dir) to auto-pick .ptx/.json from the volume folder
+        OR provide explicit (ptx_path & json_path) inside the volume.
+      - kernel_name: optional hint to disambiguate multiple artifact files.
+    """
+    import os, glob, json, importlib.util
+    import torch
+    # import your runner (mounted)
+    # ptx_runner is in KernelBench/ptx_runner.py
+    spec_runner = importlib.util.spec_from_file_location(
+        "ptx_runner", os.path.join("/repo", "KernelBench", "ptx_runner.py")
+    )
+    ptx_runner = importlib.util.module_from_spec(spec_runner)
+    spec_runner.loader.exec_module(ptx_runner)
+
+    # import your local eval helper (so we reuse exact logic/signature)
+    spec_eval = importlib.util.spec_from_file_location(
+        "eval_ptx_vs_ref", os.path.join("/repo", "scripts", "eval_ptx_vs_ref.py")
+    )
+    eval_mod = importlib.util.module_from_spec(spec_eval)
+    spec_eval.loader.exec_module(eval_mod)
+
+    # helper to select artifacts from volume dir
+    def pick_from_dir(dir_in_vol: str, hint: str | None):
+        root = os.path.join("/vol", dir_in_vol.lstrip("/")) if dir_in_vol else "/vol"
+        ptxs = sorted(glob.glob(os.path.join(root, "*.ptx")))
+        jsons = sorted(glob.glob(os.path.join(root, "*.json")))
+        if hint:
+            ptxs = [p for p in ptxs if hint in os.path.basename(p)] or ptxs
+            jsons = [j for j in jsons if hint in os.path.basename(j)] or jsons
+        if not ptxs or not jsons:
+            raise FileNotFoundError(f"No PTX/JSON in volume dir: {root}")
+        # newest files
+        return max(ptxs, key=os.path.getmtime), max(jsons, key=os.path.getmtime)
+
+    # resolve artifact paths (inside volume)
+    if ptx_path and json_path:
+        ptx_full = os.path.join("/vol", ptx_path.lstrip("/"))
+        json_full = os.path.join("/vol", json_path.lstrip("/"))
+    else:
+        ptx_full, json_full = pick_from_dir(artifact_dir, kernel_name)
+
+    # resolve problem path (mounted repo)
+    problem_full = os.path.join("/repo", problem_file)
+    if not os.path.exists(problem_full):
+        raise FileNotFoundError(f"Problem file not found: {problem_full}")
+
+    # Load problem module exactly like eval_ptx_vs_ref does
+    spec_prob = importlib.util.spec_from_file_location("kb_problem", problem_full)
+    prob = importlib.util.module_from_spec(spec_prob)
+    spec_prob.loader.exec_module(prob)
+
+    Model, get_inputs = prob.Model, prob.get_inputs
+    ref_model = Model().cuda().eval()
+    xs = [x.cuda() if isinstance(x, torch.Tensor) else x for x in get_inputs()]
+
+    with torch.no_grad():
+        y_ref = ref_model(*xs)
+
+    # Reuse the PTXKernel class from your ptx_runner module
+    ptx_model = ptx_runner.PTXKernel(ptx_full, json_full).cuda().eval()
+    with torch.no_grad():
+        y = ptx_model(*xs)
+
+    ok = torch.allclose(y_ref, y, atol=atol, rtol=rtol)
+    diff = (y_ref - y).abs().max().item()
+    print(f"[PTX Eval] Correctness: {ok} | max abs diff = {diff:.3e}")
+    return {"ok": bool(ok), "max_abs_diff": float(diff), "ptx": ptx_full, "json": json_full}
+
+@app.local_entrypoint()
+def main(
+    problem_file: str,
+    artifact_dir: str = "/",
+    ptx_path: str | None = None,
+    json_path: str | None = None,
+    kernel_name: str | None = None,
+    atol: float = 1e-2,
+    rtol: float = 1e-2,
+):
+    """
+    Examples:
+      modal run scripts/eval_ptx_modal_wrapper.py \
+        --problem-file KernelBench/level1/1_Square_matrix_multiplication_.py \
+        --artifact-dir / \
+        --ptx-path matmul_kernel.ptx \
+        --json-path matmul_kernel.json
+
+      modal run scripts/eval_ptx_modal_wrapper.py \
+        --problem-file KernelBench/level1/1_Square_matrix_multiplication_.py \
+        --artifact-dir /ptx_files \
+        --kernel-name matmul_kernel
+    """
+    print(f"[Modal] Problem: /repo/{problem_file}")
+    if ptx_path and json_path:
+        print(f"[Modal] Artifacts (explicit): /vol/{ptx_path} , /vol/{json_path}")
+    else:
+        print(f"[Modal] Artifact dir: /vol{artifact_dir if artifact_dir.startswith('/') else '/'+artifact_dir}")
+    out = eval_remote.remote(problem_file, artifact_dir, ptx_path, json_path, kernel_name, atol, rtol)
+    print(out)
