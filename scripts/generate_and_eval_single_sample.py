@@ -151,8 +151,8 @@ def main(config: EvalConfig):
 
     # Use appropriate prompt constructor based on backend
     if config.backend == "cuda":
-	if config.use_ptx:
-	from src.prompt_constructor import prompt_generate_custom_cuda_with_ptx
+        if config.use_ptx:
+            from src.prompt_constructor import prompt_generate_custom_cuda_with_ptx
             custom_prompt = prompt_generate_custom_cuda_with_ptx(
                 ref_arch_src,
                 problem_name,
