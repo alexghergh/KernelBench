@@ -459,6 +459,26 @@ Here are some best practices for writing CUDA kernels on GPU: \n\n"""
     return Nonoe
 
 
+def prompt_generate_custom_cuda_with_ptx(ref_arch_src: str,
+                                         problem_name: str,
+                                         ptx_dir: str = "/content") -> str:
+    """
+    Generate a CUDA prompt but also append PTX code if a matching .ptx file exists.
+    problem_name: e.g. '1_Square_matrix_multiplication_.py'
+    ptx_dir: where your uploaded PTX files live (default /content in Colab)
+    """
+    # Reuse normal template
+    prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
+
+    # Construct PTX path by swapping .py for .ptx
+    ptx_name = os.path.splitext(problem_name)[0] + ".ptx"
+    ptx_path = os.path.join(ptx_dir, ptx_name)
+
+    if os.path.exists(ptx_path):
+        ptx_code = read_file(ptx_path)
+        prompt += f"\n\nHere is the PTX kernel compiled from the same reference:\n```ptx\n{ptx_code}\n```"
+
+    return prompt
 
 
 

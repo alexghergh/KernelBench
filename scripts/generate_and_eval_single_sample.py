@@ -67,6 +67,8 @@ class EvalConfig(Config):
         self.log_eval_result = False
 
         self.backend = "cuda"
+        self.use_ptx = False
+        self.ptx_dir = "/content"
 
     def verbose_logging(self):
         self.log = True
@@ -149,9 +151,18 @@ def main(config: EvalConfig):
 
     # Use appropriate prompt constructor based on backend
     if config.backend == "cuda":
-        custom_prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
+	if config.use_ptx:
+	from src.prompt_constructor import prompt_generate_custom_cuda_with_ptx
+            custom_prompt = prompt_generate_custom_cuda_with_ptx(
+                ref_arch_src,
+                problem_name,
+                ptx_dir=config.ptx_dir
+            )
+        else:
+            custom_prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
     elif config.backend == "triton":
         custom_prompt = prompt_generate_custom_triton_from_prompt_template(ref_arch_src)
+
     else:
         raise ValueError(
             f"Unsupported backend: {config.backend}. Must be 'cuda' or 'triton'."
