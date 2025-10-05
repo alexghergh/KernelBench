@@ -8,7 +8,7 @@ from datasets import load_dataset
 
 from src.dataset import construct_kernelbench_dataset
 from src.eval import eval_kernel_against_ref
-from src.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template
+from src.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template, prompt_generate_prompt_with_hardware_info_from_template
 from src.utils import extract_first_code, query_server, set_gpu_arch, read_file, create_inference_server_from_presets
 
 """
@@ -22,7 +22,7 @@ torch.set_printoptions(precision=4, threshold=10)
 
 class EvalConfig(Config):
     def __init__(self):
-        
+
         self.dataset_src = REQUIRED # either huggingface or local
 
         # name of dataset name on Hugging Face
@@ -86,7 +86,7 @@ def main(config: EvalConfig):
 
     if config.log:
         os.makedirs(config.logdir, exist_ok=True)
-        
+
     # Problem Checks
     num_problems = len(curr_level_dataset)
     print(f"Number of problems in Level {config.level}: {num_problems}")
@@ -113,8 +113,8 @@ def main(config: EvalConfig):
     # Extract problem number from problem name (e.g. "1" from "1_Square_matrix_multiplication_.py")
     problem_number = int(problem_name.split("_")[0])
     assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
-    
-    
+
+
     # 2. Generate Sample
     # Create inference function with config parameters
     # We provide some presets in utils but you can also pass in your own, see query_server for more details
@@ -124,20 +124,24 @@ def main(config: EvalConfig):
                                                         max_tokens=config.max_tokens,
                                                         verbose=config.verbose,
                                                         time_generation=True)
-    
 
 
-    custom_cuda_prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
+
+    # (alexgh)
+    # custom_cuda_prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
+    custom_cuda_prompt = prompt_generate_prompt_with_hardware_info_from_template(ref_arch_src, "H100")
     if config.log_prompt:
         with open(os.path.join(config.logdir, f"prompt_level_{config.level}_problem_{config.problem_id}.txt"), "w") as f:
             f.write(custom_cuda_prompt)
 
     # Query server with constructed prompt
     custom_cuda = inference_server(custom_cuda_prompt)
+    # (alexgh)
+    print("RESPONSE FROM MODEL IS: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ", custom_cuda, "END >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     custom_cuda = extract_first_code(custom_cuda, ["python", "cpp"])
     # check LLM is able to generate custom CUDA code
     assert custom_cuda is not None, "Custom CUDA code generation failed"
-    
+
     # this should be optional
     if config.log:
         with open(os.path.join(config.logdir, f"generated_kernel_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
@@ -149,7 +153,7 @@ def main(config: EvalConfig):
     kernel_exec_result = eval_kernel_against_ref(
         ref_arch_src, custom_cuda, verbose=config.verbose, measure_performance=True, num_correct_trials=5, num_perf_trials=100
     )
-    
+
     print(f"Evaluation result for level {config.level} problem {config.problem_id}:\n{kernel_exec_result}")
 
     if config.log:

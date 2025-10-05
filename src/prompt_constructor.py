@@ -1,13 +1,13 @@
 import os
-from .utils import read_file
+from src.utils import read_file
 
 
 """
 Construct Prompt
 
-Design principles: 
+Design principles:
 - To evaluate base model performance on KernelBench, we use the simplest prompt possible to guide model output to generated desired output format.
-- However, we do not do extensive prompt engineering or few-shot example in the LLM to steer behaviour. 
+- However, we do not do extensive prompt engineering or few-shot example in the LLM to steer behaviour.
 """
 
 REPO_TOP_PATH = os.path.abspath(
@@ -54,7 +54,7 @@ def prompt_generate_custom_cuda(
         ``` \n
         {example_arch_src}
         ``` \n
-        The example new arch with custom CUDA kernels looks like this: 
+        The example new arch with custom CUDA kernels looks like this:
         ```
         {example_new_arch_src}
         ``` \n
@@ -78,10 +78,10 @@ Optimize the architecture named Model with custom CUDA operators! Name your opti
 
 def prompt_generate_custom_cuda_fewshot_and_template(ref_arch_src: str, shots: list) -> str:
     """
-    Generate a prompt with specified few-shot examples following a template 
+    Generate a prompt with specified few-shot examples following a template
 
     shots: list of few-shot examples to include in the prompt
-    Avaliable few shot options to start with: 
+    Avaliable few shot options to start with:
     - ex_add: pointwise addition
     - ex_fuse_gelu: fused gelu
     - ex_mnist2: fused convolutions and relus (DEPRECATED)
@@ -150,7 +150,7 @@ def prompt_generate_custom_cuda_fewshot_and_template(ref_arch_src: str, shots: l
             examples.append((example_tiled_matmul, example_tiled_matmul_new, example_tiled_matmul_desc))
         elif s == "ex_flash_attn":
             examples.append((example_flash_attn, example_flash_attn_new, example_flash_attn_desc))
-    
+
 
     for i, tup in enumerate(examples):
         base, kernel, desc = tup
@@ -181,8 +181,8 @@ Here is an example architecture:\n\n
 
 def prompt_generate_ex_with_CoT_template(ref_arch_src: str, cot_example: str) -> str:
     """
-    Generate a prompt with a CoT example following a template 
-    Avaliable CoT examples: 
+    Generate a prompt with a CoT example following a template
+    Avaliable CoT examples:
     - ex_fuse_gelu: fused gelu
     - ex_mnist2: fused convolutions and relus
     - ex_tiled_matmul: tiled matrix multiplication
@@ -190,13 +190,13 @@ def prompt_generate_ex_with_CoT_template(ref_arch_src: str, cot_example: str) ->
 
     # I updated this to allow CoT. Also explicilty state think step by step.
     PROBLEM_INSTRUCTION_COT = """
-Optimize the architecture named Model with custom CUDA operators! Name your optimized output architecture ModelNew. Output the new code in codeblocks. Please generate real code, NOT pseudocode, make sure the code compiles and is fully functional. Do not output testing code. 
+Optimize the architecture named Model with custom CUDA operators! Name your optimized output architecture ModelNew. Output the new code in codeblocks. Please generate real code, NOT pseudocode, make sure the code compiles and is fully functional. Do not output testing code.
 In the end, make sure the final code block contains code for output architecture ModelNew with cuda code.\n
 Let's think step by step.\n
-""" 
+"""
 
     prompt = PROBLEM_STATEMENT_CLEANED
-    
+
     assert cot_example in ["ex_fuse_gelu", "ex_mnist2", "ex_tiled_matmul"]
 
     # k = 2
@@ -234,7 +234,7 @@ Let's think step by step.\n
         os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_new_ex_tiled_matmul.py")
     )
     example_tiled_matmul_desc = "This given architecture is for a model with tiled matrix multiplication: "
-    
+
     match cot_example:
         case "ex_fuse_gelu":
             base = example_fuse_gelu
@@ -254,7 +254,7 @@ Let's think step by step.\n
         case _:
             raise ValueError(f"Invalid CoT example: {cot_example} not found in CoT examples")
 
-    # construct example with 
+    # construct example with
     # NOTE: we only do one example with CoT for now
     # 1. ref_src problem -> 2. Instruction -> 3. CoT -> 4. Solution
     prompt += f"""
@@ -349,7 +349,7 @@ def prompt_generate_custom_cuda_from_prompt_template(ref_arch_src: str) -> str:
 
 def prompt_generate_prompt_with_hardware_info_from_template(ref_arch_src: str, gpu_name: str) -> str:
     """
-    Similar to prompt_generate_custom_cuda_from_prompt_template, 
+    Similar to prompt_generate_custom_cuda_from_prompt_template,
     but with hardware information for the given GPU
     """
 
@@ -371,19 +371,19 @@ def prompt_generate_prompt_with_hardware_info_from_template(ref_arch_src: str, g
     gpu_spec_info = read_file(gpu_spec_file_path)
 
     return prompt_generate_prompt_with_hardware_info(
-                                        ref_arch_src=arch, 
-                                        gpu_name=gpu_name, 
-                                        example_arch_src=example_arch, 
-                                        example_new_arch_src=example_new_arch, 
+                                        ref_arch_src=arch,
+                                        gpu_name=gpu_name,
+                                        example_arch_src=example_arch,
+                                        example_new_arch_src=example_new_arch,
                                         gpu_spec_info_src=gpu_spec_info
                                         )
-    
 
 
-def prompt_generate_prompt_with_hardware_info(ref_arch_src: str, 
-                                              gpu_name: str, 
-                                              example_arch_src: str, 
-                                              example_new_arch_src: str, 
+
+def prompt_generate_prompt_with_hardware_info(ref_arch_src: str,
+                                              gpu_name: str,
+                                              example_arch_src: str,
+                                              example_new_arch_src: str,
                                               gpu_spec_info_src: str) -> str:
     """
     Generate a prompt with hardware information for the given GPU
@@ -392,15 +392,15 @@ def prompt_generate_prompt_with_hardware_info(ref_arch_src: str,
 
     # Create a dictionary to store the local namespace
     local_dict = {}
-    
+
     # Execute the GPU spec file in the local namespace
     exec(gpu_spec_info_src, {}, local_dict)
-    
+
     # Get the required variables from the local namespace
     GPU_SPEC_INFO = local_dict.get('GPU_SPEC_INFO')
     GPU_DEFINITIONS = local_dict.get('GPU_DEFINITIONS')
     GPU_BEST_PRACTICES = local_dict.get('GPU_BEST_PRACTICES')
-    
+
     if not GPU_SPEC_INFO or not GPU_DEFINITIONS or not GPU_BEST_PRACTICES:
         raise ValueError("GPU_SPEC_INFO or GPU_DEFINITIONS or GPU_BEST_PRACTICES not found in gpu_spec_info_src")
 
@@ -414,25 +414,25 @@ def prompt_generate_prompt_with_hardware_info(ref_arch_src: str,
         ``` \n
         {example_arch_src}
         ``` \n
-        The example new arch with custom CUDA kernels looks like this: 
+        The example new arch with custom CUDA kernels looks like this:
         ```
         {example_new_arch_src}
         ``` \n
         """
-    
+
     curr_gpu_spec_info = GPU_SPEC_INFO[gpu_name]
 
     gpu_architecture = curr_gpu_spec_info.get("GPU Architecture")
     prompt += f"""
     Here is some information about the underlying hardware that you should keep in mind. \n\n
 The GPU that will run the kernel is NVIDIA {gpu_name}, {gpu_architecture} architecture.\n\n"""
-    
+
     for key, value in curr_gpu_spec_info.items():
         if key == "GPU Architecture":
             continue
         prompt += f"""- We have {value} of {key}.\n"""
-    
-    
+
+
     prompt += f"""\n\n
 Here are some concepts about the GPU architecture that could be helpful: \n\n"""
     for key, value in GPU_DEFINITIONS.items():
@@ -450,7 +450,7 @@ Here are some best practices for writing CUDA kernels on GPU: \n\n"""
     {ref_arch_src}
     ```
     """
-    
+
 
     prompt += PROBLEM_INSTRUCTION
     return prompt
@@ -477,7 +477,7 @@ def prompt_fix_compile(ref_arch_src, custom_cuda, metadata):
     ```
     {metadata}
     ```
-    
+
     Please fix the compilation error in the new model code. Please output the corrected code in codeblocks.
     """
     return prompt
@@ -503,7 +503,7 @@ def prompt_fix_correctness(ref_arch_src, custom_cuda, metadata):
     return prompt
 
 def main():
-    gpu_name = "L40S"
+    gpu_name = "H100"
 
 
     ref_arch_src = read_file(os.path.join(KERNEL_BENCH_PATH, f"level1/19_ReLU.py"))

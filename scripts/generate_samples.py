@@ -10,7 +10,7 @@ from datasets import load_dataset
 
 from src.dataset import construct_kernelbench_dataset
 from src.eval import eval_kernel_against_ref
-from src.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template
+from src.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template, prompt_generate_prompt_with_hardware_info_from_template
 from src.utils import extract_first_code, set_gpu_arch, read_file, create_inference_server_from_presets, maybe_multithread
 
 """
@@ -25,7 +25,7 @@ torch.set_printoptions(precision=4, threshold=10)
 
 class GenerationConfig(Config):
     def __init__(self):
-        
+
         self.dataset_src = REQUIRED # either huggingface or local
 
         # name of dataset name on Hugging Face
@@ -33,7 +33,7 @@ class GenerationConfig(Config):
 
         # Problem Specification
         self.level = REQUIRED
-        
+
         # subset of problems to generate, otherwise generate on all problems in the level
         self.subset = (None, None) # (problem_id, problem_name), these are the logical index
 
@@ -48,11 +48,11 @@ class GenerationConfig(Config):
         self.model_name = "deepseek-coder"
         self.max_tokens = 4096
         self.temperature = 0.0
-        
+
         # Logging
         # Top Directory to Store Runs
         self.runs_dir = os.path.join(REPO_TOP_DIR, "runs")
-    
+
         self.verbose = False
         self.store_type = "local" # TODO: add Database Integration
 
@@ -68,7 +68,7 @@ class GenerationConfig(Config):
 
     def __repr__(self):
         return f"EvalConfig({self.to_dict()})"
-    
+
 
 @dataclass
 class WorkArgs:
@@ -93,11 +93,13 @@ def generate_sample_single(work: WorkArgs, config: GenerationConfig, dataset, in
     # Extract problem number from problem name (e.g. "1" from "1_Square_matrix_multiplication_.py")
     problem_number = int(problem_name.split("_")[0])
     assert problem_number == work.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
-    
-    
 
-    # Construct Prompt   
-    custom_cuda_prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
+
+
+    # Construct Prompt
+    # (alexgh)
+    #custom_cuda_prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
+    custom_cuda_prompt = prompt_generate_prompt_with_hardware_info_from_template(ref_arch_src, "H100")
     if config.log_prompt:
         prompt_path = os.path.join(run_dir, f"level_{config.level}_problem_{work.problem_id}_sample_{work.sample_id}_prompt.txt")
         with open(prompt_path, "w") as f:
@@ -116,9 +118,9 @@ def generate_sample_single(work: WorkArgs, config: GenerationConfig, dataset, in
     kernel_path = os.path.join(run_dir, f"level_{config.level}_problem_{work.problem_id}_sample_{work.sample_id}_kernel.py")
     with open(kernel_path, "w") as f:
         f.write(custom_cuda)
-    
+
     return True
-    
+
 
 def generate_sample_launcher(work: WorkArgs, config: GenerationConfig, dataset, inference_server: callable, run_dir: str):
     try:
@@ -134,7 +136,7 @@ def check_kernel_exists(run_dir: str, level: int, problem_id: int, sample_id: in
     """
     kernel_path = os.path.join(run_dir, f"level_{level}_problem_{problem_id}_sample_{sample_id}_kernel.py")
     return os.path.exists(kernel_path)
-    
+
 
 @pydra.main(base=GenerationConfig)
 def main(config: GenerationConfig):
@@ -180,7 +182,7 @@ def main(config: GenerationConfig):
                     sample_id=0 # fix to 0 for now
                 )
         )
-    
+
 
     # Create inference function with config parameters
     # We provide some presets in utils but you can also pass in your own, see query_server for more details
@@ -191,17 +193,17 @@ def main(config: GenerationConfig):
                                                         verbose=config.verbose)
 
     # Launch workers
-    generation_results = maybe_multithread(generate_sample_launcher, 
-                      problems_to_run, 
-                      config.num_workers, 
-                      time_interval=config.api_query_interval, 
+    generation_results = maybe_multithread(generate_sample_launcher,
+                      problems_to_run,
+                      config.num_workers,
+                      time_interval=config.api_query_interval,
                       # extra args
-                      config=config, 
-                      dataset=curr_level_dataset, 
+                      config=config,
+                      dataset=curr_level_dataset,
                       inference_server=inference_server,
                       run_dir=run_dir
                       )
-    
+
     num_generated_samples = len(generation_results)
     total_problems = len(problems_to_run)
     num_failed_problems = total_problems - num_generated_samples

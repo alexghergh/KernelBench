@@ -64,7 +64,7 @@ def is_safe_to_send_to_deepseek(prompt):
     tokenizer = load_deepseek_tokenizer()
     # print(f"Prompt: {len(prompt)}")
     # print(f"Prompt length: {len(tokenizer(prompt, verbose=False)['input_ids'])}")
-    
+
     if type(prompt) == str:
         return (
             len(tokenizer(prompt, verbose=False)["input_ids"]) < TOO_LONG_FOR_DEEPSEEK
@@ -80,7 +80,7 @@ def set_gpu_arch(arch_list: list[str]):
     for arch in arch_list:
         if arch not in valid_archs:
             raise ValueError(f"Invalid architecture: {arch}. Must be one of {valid_archs}")
-    
+
     os.environ["TORCH_CUDA_ARCH_LIST"] = ";".join(arch_list)
 
 def query_server(
@@ -88,7 +88,7 @@ def query_server(
     system_prompt: str = "You are a helpful assistant",  # only used for chat prompts
     temperature: float = 0.0,
     top_p: float = 1.0, # nucleus sampling
-    top_k: int = 50, 
+    top_k: int = 50,
     max_tokens: int = 128,  # max output tokens to generate
     num_completions: int = 1,
     server_port: int = 30000,  # only for local server hosted on SGLang
@@ -97,9 +97,11 @@ def query_server(
     model_name: str = "default",  # specify model type
 
     # for reasoning models
-    is_reasoning_model: bool = False, # indiactor of using reasoning models
+    # (alexgh)
+    #is_reasoning_model: bool = False, # indiactor of using reasoning models
+    is_reasoning_model: bool = True, # indiactor of using reasoning models
     budget_tokens: int = 0, # for claude thinking
-    reasoning_effort: str = None, # only for o1 and o3 / more reasoning models in the future
+    reasoning_effort: str = 'high', # gpt-5
 ):
     """
     Query various sort of LLM inference API providers
@@ -155,7 +157,7 @@ def query_server(
         case "sambanova":
             client = OpenAI(api_key=SAMBANOVA_API_KEY, base_url="https://api.sambanova.ai/v1")
             model = model_name
-            
+
         case "openai":
             client = OpenAI(api_key=OPENAI_KEY)
             model = model_name
@@ -174,7 +176,7 @@ def query_server(
 
         if is_reasoning_model:
             # Use beta endpoint with thinking enabled for reasoning models
-            response = client.beta.messages.create(
+            response = client.with_options(timeout=10000000).messages.create(
                 model=model,
                 system=system_prompt,
                 messages=[
@@ -182,23 +184,32 @@ def query_server(
                 ],
                 max_tokens=max_tokens,
                 # Claude thinking requires budget_tokens for thinking (reasoning)
-                thinking={"type": "enabled", "budget_tokens": budget_tokens},
-                betas=["output-128k-2025-02-19"],
+                thinking={"type": "enabled", "budget_tokens": max_tokens // 2},
+                #betas=["output-128k-2025-02-19"],
             )
         else:
             # Use standard endpoint for normal models
-            response = client.messages.create(
+            response = client.with_options(timeout=10000000).messages.create(
                 model=model,
                 system=system_prompt,
                 messages=[
                     {"role": "user", "content": prompt},
                 ],
                 temperature=temperature,
-                top_p=top_p,
+                # top_p=top_p,
                 top_k=top_k,
                 max_tokens=max_tokens,
             )
-        outputs = [choice.text for choice in response.content if not hasattr(choice, 'thinking') or not choice.thinking]
+        # (alexgh)
+        outputs = []
+        for block in response.content:
+            if block.type == 'thinking':
+                #print(">>>> Anthropic thinking tokens: ", block.thinking)
+                pass
+            elif block.type == 'text':
+                outputs.append(block.text)
+
+        # outputs = [choice.text for choice in response.content if not hasattr(choice, 'thinking') or not choice.thinking]
 
     elif server_type == "google":
         # assert model_name == "gemini-1.5-flash-002", "Only test this for now"
@@ -222,9 +233,9 @@ def query_server(
         return response.text
 
     elif server_type == "deepseek":
-        
+
         if model in ["deepseek-chat", "deepseek-coder"]:
-            # regular deepseek model 
+            # regular deepseek model
             response = client.chat.completions.create(
                     model=model,
                     messages=[
@@ -255,8 +266,8 @@ def query_server(
         outputs = [choice.message.content for choice in response.choices]
     elif server_type == "openai":
         if is_reasoning_model:
-            assert "o1" in model or "o3" in model, "Only support o1 and o3 for now"
-            print(f"Using OpenAI reasoning model: {model} with reasoning effort {reasoning_effort}")
+            # assert "o1" in model or "o3" in model, "Only support o1 and o3 for now"
+            # print(f"Using OpenAI reasoning model: {model} with reasoning effort {reasoning_effort}")
             print(f"Using OpenAI reasoning model: {model} with reasoning effort {reasoning_effort}")
             response = client.chat.completions.create(
                 model=model,
@@ -278,6 +289,9 @@ def query_server(
                 max_tokens=max_tokens,
                 top_p=top_p,
             )
+        # print(">>> OPENAI FULL OUTPUT: ")
+        # print(json.dumps(response.choices[0], indent=2, ensure_ascii=False))
+        # print("<<<<< AND END")
         outputs = [choice.message.content for choice in response.choices]
     elif server_type == "together":
         response = client.chat.completions.create(
@@ -358,7 +372,7 @@ def query_server(
 # a list of presets for API server configs
 SERVER_PRESETS = {
     "deepseek": {
-        "temperature": 1.6, 
+        "temperature": 1.6,
         "model_name": "deepseek",
         "max_tokens": 4096
     },
@@ -375,9 +389,11 @@ SERVER_PRESETS = {
     },
     "sglang": {  # this is for running locally, mostly for Llama
         "temperature": 0.8, # human eval pass@N temperature
-        "server_port": 10210,
-        "server_address": "matx2.stanford.edu",
-        "max_tokens": 8192,
+        "server_port": 34561,
+        "server_address": "localhost",
+        # "server_port": 10210,
+        # "server_address": "matx2.stanford.edu",
+        "max_tokens": 16384,
     },
     "anthropic": {  # for Claude 3.5 Sonnet
         "model_name": "claude-3-5-sonnet-20241022",
@@ -398,8 +414,8 @@ SERVER_PRESETS = {
 }
 
 
-def create_inference_server_from_presets(server_type: str = None, 
-                                         greedy_sample: bool = False,   
+def create_inference_server_from_presets(server_type: str = None,
+                                         greedy_sample: bool = False,
                                          verbose: bool = False,
                                          time_generation: bool = False,
                                          **kwargs,
@@ -418,7 +434,7 @@ def create_inference_server_from_presets(server_type: str = None,
             server_args["top_k"] = 1
         if verbose:
             print(f"Querying server {server_type} with args: {server_args}")
-        
+
         if time_generation:
             start_time = time.time()
             response = query_server(
@@ -431,7 +447,7 @@ def create_inference_server_from_presets(server_type: str = None,
             return query_server(
                 prompt, server_type=server_type, **server_args
             )
-    
+
     return _query_llm
 
 """
@@ -444,7 +460,7 @@ def read_file(file_path) -> str:
     if not os.path.exists(file_path):
         print(f"File {file_path} does not exist")
         return ""
-    
+
     try:
         with open(file_path, "r") as file:
             return file.read()
@@ -510,7 +526,7 @@ def extract_last_code(output_string: str, code_language_types: list[str]) -> str
 
     # Find all matches of code blocks
     code_matches = re.finditer(r"```(.*?)```", trimmed, re.DOTALL)
-    
+
     # Get the last match by converting to list and taking the last element
     matches_list = list(code_matches)
     if matches_list:
@@ -523,7 +539,7 @@ def extract_last_code(output_string: str, code_language_types: list[str]) -> str
                 code = code[len(code_type):].strip()
 
         return code
-    
+
     return None
 
 def extract_code_blocks(text, code_language_types: list[str]) -> str:
@@ -542,7 +558,7 @@ def extract_code_blocks(text, code_language_types: list[str]) -> str:
             if code.startswith(lang_type):
                 code = code[len(lang_type):].strip()
         combined_code.append(code)
-    
+
     return " \n ".join(combined_code) if combined_code else ""
 
 ################################################################################
