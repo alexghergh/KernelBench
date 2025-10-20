@@ -18,14 +18,19 @@ Usage:
 ```
 python3 scripts/benchmark_eval_analysis.py run_name=<run_name> level=<level> hardware=<hardware> baseline=<baseline>
 ```
-hardware + baseline should correspond to the results/timing/hardware/baseline.json file   
+hardware + baseline should correspond to the results/timing/hardware/baseline.json file
 
-""" 
+"""
+
+REPO_TOP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class AnalysisConfig(Config):
     def __init__(self):
         self.run_name = REQUIRED # name of the run to evaluate
         self.level = REQUIRED # level to evaluate
+
+        # top directory to store runs
+        self.runs_dir = os.path.join(REPO_TOP_DIR, "runs")
 
         self.hardware = REQUIRED # hardware to evaluate
         self.baseline = REQUIRED # baseline to compare against
@@ -40,16 +45,16 @@ def patch(eval_results, dataset):
     for pid in range(1, len(dataset) + 1):
         if str(pid) not in eval_results:
             eval_results[str(pid)] = {
-                "sample_id": 0, 
-                "compiled": False, 
-                "correctness": False, 
+                "sample_id": 0,
+                "compiled": False,
+                "correctness": False,
                 "metadata": {},
-                "runtime": -1.0, 
+                "runtime": -1.0,
                 "runtime_stats": {}
             }
     return eval_results
 
-def analyze_greedy_eval(run_name, hardware, baseline, level):
+def analyze_greedy_eval(run_name, runs_dir, hardware, baseline, level):
     """
     Analyze the greedy eval results for a run of a particular level
     """
@@ -57,7 +62,8 @@ def analyze_greedy_eval(run_name, hardware, baseline, level):
     dataset = construct_kernelbench_dataset(level)
 
     # load json
-    eval_file_path = f'runs/{run_name}/eval_results.json'
+    run_dir = os.path.join(runs_dir, run_name)
+    eval_file_path = os.path.join(run_dir, f"eval_results.json")
     assert os.path.exists(eval_file_path), f"Eval file does not exist at {eval_file_path}"
 
     baseline_file_path = f'results/timing/{hardware}/{baseline}.json'
@@ -95,7 +101,7 @@ def analyze_greedy_eval(run_name, hardware, baseline, level):
 
     print(f"\nSuccess rates:")
     print(f"Compilation rate: {compiled_count/total_count*100:.1f}%")
-    print(f"Correctness rate: {correct_count/total_count*100:.1f}%") 
+    print(f"Correctness rate: {correct_count/total_count*100:.1f}%")
 
 
     # Calculate speedup metrics
@@ -130,7 +136,7 @@ def analyze_greedy_eval(run_name, hardware, baseline, level):
 
 @pydra.main(base=AnalysisConfig)
 def main(config: AnalysisConfig):
-    analyze_greedy_eval(config.run_name, config.hardware, config.baseline, config.level)
+    analyze_greedy_eval(config.run_name, config.runs_dir, config.hardware, config.baseline, config.level)
 
 if __name__ == "__main__":
     main()
