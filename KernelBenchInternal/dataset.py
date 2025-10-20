@@ -6,6 +6,7 @@ import os
 import random
 import re
 import hashlib
+from typing import List, Union
 
 REPO_TOP_PATH = os.path.abspath(
     os.path.join(
@@ -88,6 +89,9 @@ def get_kernelbench_subset(
     subset = sorted([full_dataset[i] for i in subset_indices])
     return subset, subset_indices
 
+KERNELBENCH_LEVEL_1_SUBSET_DATASET = construct_kernelbench_dataset(level=1)
+KERNELBENCH_LEVEL_2_SUBSET_DATASET = construct_kernelbench_dataset(level=2)
+KERNELBENCH_LEVEL_3_SUBSET_DATASET = construct_kernelbench_dataset(level=3)
 
 ################################################################################
 # Representative subsets of KernelBench
@@ -144,3 +148,63 @@ level3_representative_subset = [
 ]
 
 level3_representative_subset_problem_ids = [1, 5, 8, 11, 20, 33, 38, 43]
+
+################################################################################
+# A dataset class for KernelBench problems
+# this is only used by Caesar for now
+################################################################################
+
+class KernelBenchDataset:
+    def __init__(
+        self,
+        dataset_name: str,
+        level: int,
+        use_subset: bool,
+        dataset: List[str],
+        subset_dataset: Union[List[str], None] = None
+    ):
+        """
+        :param dataset_name: name string like "KernelBench/level1"
+        :param level: 1, 2, or 3
+        :param use_subset: whether to use a representative subset
+        :param dataset: full list of problem file paths
+        :param subset_dataset: optional list of subset file paths
+        """
+        self.dataset_name = dataset_name
+        self.level = level
+        self.use_subset = use_subset
+
+        # Load full dataset or subset
+        if use_subset:
+            if level == 1:
+                self.dataset = level1_representative_subset
+                self.problem_ids = level1_representative_subset_problem_ids
+            elif level == 2:
+                self.dataset = level2_representative_subset
+                self.problem_ids = level2_representative_subset_problem_ids
+            elif level == 3:
+                self.dataset = level3_representative_subset
+                self.problem_ids = level3_representative_subset_problem_ids
+            else:
+                raise ValueError(f"Unsupported level: {level}")
+        else:
+            self.dataset = dataset
+            # Assume 1-indexed logical IDs
+            self.problem_ids = list(range(1, len(dataset) + 1))
+
+        # Create mapping from ID to file
+        self.id_to_file = dict(zip(self.problem_ids, self.dataset))
+
+    def get_problem_ids(self) -> List[int]:
+        return self.problem_ids
+
+    def get_problem_by_id(self, problem_id: int) -> str:
+        """
+        Returns the full path to the problem file given a 1-indexed problem_id.
+        """
+        if problem_id not in self.id_to_file:
+            raise ValueError(f"Problem ID {problem_id} not found.")
+        return self.id_to_file[problem_id]
+
+    def __len__(self):
+        return len(self.problem_ids)
