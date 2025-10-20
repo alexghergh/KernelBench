@@ -6,11 +6,11 @@ import os
 from datasets import load_dataset
 
 
-from src import eval as kernel_eval
-from src import utils as kernel_utils
+from KernelBenchInternal import eval as kernel_eval
+from KernelBenchInternal import utils as kernel_utils
 from scripts.generate_baseline_time import measure_program_time
 
-from src.utils import read_file
+from KernelBenchInternal.utils import read_file
 
 """
 Run a pair of KernelBench format (problem, solution) to check if solution is correct and compute speedup
@@ -67,7 +67,7 @@ class ScriptConfig(Config):
         self.clear_cache = False # TODO
 
         # Replace with your NVIDIA GPU architecture, e.g. ["Hopper"]
-        self.gpu_arch = ["Ada"] 
+        self.gpu_arch = ["Ada"]
 
     def __repr__(self):
         return f"ScriptConfig({self.to_dict()})"
@@ -79,13 +79,13 @@ def evaluate_single_sample_src(ref_arch_src: str, kernel_src: str, configs: dict
 
     kernel_hash = str(hash(kernel_src))
     build_dir = os.path.join(configs["build_dir_prefix"], "test_build", kernel_hash)
-    
+
     if configs["clear_cache"]: # fresh kernel build
         print(f"[INFO] Clearing cache for build directory: {build_dir}")
         shutil.rmtree(build_dir, ignore_errors=True)
-    
+
     num_correct_trials = configs["num_correct_trials"]
-    num_perf_trials = configs["num_perf_trials"]    
+    num_perf_trials = configs["num_perf_trials"]
     verbose = configs["verbose"]
     measure_performance = configs["measure_performance"]
     try:
@@ -102,13 +102,13 @@ def evaluate_single_sample_src(ref_arch_src: str, kernel_src: str, configs: dict
         return eval_result
     except Exception as e:
         print(f"[WARNING] Last level catch: Some issue evaluating for kernel: {e} ")
-        if "CUDA error" in str(e): 
+        if "CUDA error" in str(e):
             # NOTE: count this as compilation failure as it is not runnable code
             metadata = {"cuda_error": f"CUDA Error: {str(e)}",
                         "hardware": torch.cuda.get_device_name(device=device),
                         "device": str(device)
                         }
-            eval_result = kernel_eval.KernelExecResult(compiled=False, correctness=False, 
+            eval_result = kernel_eval.KernelExecResult(compiled=False, correctness=False,
                                                 metadata=metadata)
             return eval_result
         else:
@@ -116,7 +116,7 @@ def evaluate_single_sample_src(ref_arch_src: str, kernel_src: str, configs: dict
                         "hardware": torch.cuda.get_device_name(device=device),
                         "device": str(device)
                         }
-            eval_result = kernel_eval.KernelExecResult(compiled=False, correctness=False, 
+            eval_result = kernel_eval.KernelExecResult(compiled=False, correctness=False,
                                                 metadata=metadata)
             return eval_result
 
@@ -129,8 +129,8 @@ def main(config: ScriptConfig):
     # Fetch reference and kernel code
 
     assert config.ref_origin == "local" or config.ref_origin == "kernelbench", "ref_origin must be either local or kernelbench"
-    assert config.kernel_src_path != "", "kernel_src_path is required"  
-    
+    assert config.kernel_src_path != "", "kernel_src_path is required"
+
     if config.ref_origin == "local":
         assert config.ref_arch_src_path != "", "ref_arch_src_path is required"
         ref_arch_src = read_file(config.ref_arch_src_path)
@@ -155,7 +155,7 @@ def main(config: ScriptConfig):
 
     else:
         raise ValueError("Invalid ref_origin")
-    
+
     kernel_src = read_file(config.kernel_src_path)
 
     # Start Evaluation
@@ -175,16 +175,16 @@ def main(config: ScriptConfig):
     # Measure baseline time
     print("[INFO] Measuring reference program time")
     # Default using PyTorch Eager here
-    ref_time_eager_result = measure_program_time(ref_arch_name="Reference Program", 
-                                                ref_arch_src=ref_arch_src, 
+    ref_time_eager_result = measure_program_time(ref_arch_name="Reference Program",
+                                                ref_arch_src=ref_arch_src,
                                                 num_trials=config.num_perf_trials,
                                                 use_torch_compile=False,
                                                 device=device)
     ref_exec_eager_time = ref_time_eager_result.get("mean", None)
 
     # Measure Torch Compile time
-    ref_time_compile_result = measure_program_time(ref_arch_name="Reference Program", 
-                                                ref_arch_src=ref_arch_src, 
+    ref_time_compile_result = measure_program_time(ref_arch_name="Reference Program",
+                                                ref_arch_src=ref_arch_src,
                                                 num_trials=config.num_perf_trials,
                                                 use_torch_compile=True,
                                                 torch_compile_backend="inductor",
@@ -198,8 +198,8 @@ def main(config: ScriptConfig):
     print(f"[Timing] PyTorch Reference Eager exec time: {ref_exec_eager_time} ms")
     print(f"[Timing] PyTorch Reference torch.compile time: {ref_exec_compile_time} ms")
     print(f"[Timing] Custom Kernel exec time: {kernel_exec_time} ms")
-    print("-"*40)   
-    
+    print("-"*40)
+
     if kernel_eval_result.correctness:
         print(f"[Speedup] Speedup over eager: {ref_exec_eager_time / kernel_exec_time:.2f}x")
         print(f"[Speedup] Speedup over torch.compile: {ref_exec_compile_time / kernel_exec_time:.2f}x")

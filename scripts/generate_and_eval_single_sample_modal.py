@@ -8,9 +8,9 @@ import modal
 from datasets import load_dataset
 
 #from src.dataset import construct_kernelbench_dataset
-from src.eval import eval_kernel_against_ref
-from src.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template
-from src.utils import extract_first_code, query_server, set_gpu_arch, read_file, create_inference_server_from_presets
+from KernelBenchInternal.eval import eval_kernel_against_ref
+from KernelBenchInternal.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template
+from KernelBenchInternal.utils import extract_first_code, query_server, set_gpu_arch, read_file, create_inference_server_from_presets
 
 app = modal.App("eval_single_sample")
 
@@ -27,7 +27,7 @@ gpu_arch_mapping = {"L40S": ["Ada"], "H100": ["Hopper"], "A100": ["Ampere"], "L4
 
 class EvalConfig(Config):
     def __init__(self):
-        
+
         self.dataset_src = REQUIRED # either huggingface or local
 
         # name of dataset name on Hugging Face
@@ -53,7 +53,7 @@ class EvalConfig(Config):
         self.model_name = "deepseek-coder"
         self.max_tokens = 4096
         self.temperature = 0.0
-        
+
         # Logging
         self.logdir = os.path.join(REPO_TOP_DIR, "results/eval_logs")
         self.verbose = False
@@ -82,7 +82,7 @@ image = (
     .apt_install("git",
                 "gcc-10",
                 "g++-10",
-                "clang" # note i skip a step 
+                "clang" # note i skip a step
                 )
     .pip_install(  # required to build flash-attn
         "anthropic",
@@ -119,21 +119,21 @@ class EvalFunc:
 
 @pydra.main(base=EvalConfig)
 def main(config: EvalConfig):
-    
+
     """
     Keep it simple: Generate and evaluate a single sample
     """
     print(f"Starting Eval with config: {config}")
 
     # Configurations
-    
+
     if config.dataset_src == "huggingface":
         dataset = load_dataset(config.dataset_name)
         curr_level_dataset = dataset[f"level_{config.level}"]
 
     if config.log:
         os.makedirs(config.logdir, exist_ok=True)
-        
+
     # Problem Checks
     num_problems = len(curr_level_dataset)
     print(f"Number of problems in Level {config.level}: {num_problems}")
@@ -160,8 +160,8 @@ def main(config: EvalConfig):
     # Extract problem number from problem name (e.g. "1" from "1_Square_matrix_multiplication_.py")
     problem_number = int(problem_name.split("_")[0])
     assert problem_number == config.problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({config.problem_id})"
-    
-    
+
+
     # 2. Generate Sample
     # Create inference function with config parameters
     # We provide some presets in utils but you can also pass in your own, see query_server for more details
@@ -169,9 +169,9 @@ def main(config: EvalConfig):
                                                         model_name=config.model_name,
                                                         temperature=config.temperature,
                                                         max_tokens=config.max_tokens,
-                                                        verbose=config.verbose, 
+                                                        verbose=config.verbose,
                                                         time_generation=True)
-    
+
 
 
     custom_cuda_prompt = prompt_generate_custom_cuda_from_prompt_template(ref_arch_src)
@@ -184,7 +184,7 @@ def main(config: EvalConfig):
     custom_cuda = extract_first_code(custom_cuda, ["python", "cpp"])
     # check LLM is able to generate custom CUDA code
     assert custom_cuda is not None, "Custom CUDA code generation failed"
-    
+
     # this should be optional
     if config.log:
         with open(os.path.join(config.logdir, f"generated_kernel_level_{config.level}_problem_{config.problem_id}.py"), "w") as f:
@@ -192,9 +192,9 @@ def main(config: EvalConfig):
 
     with app.run():
         kernel_exec_result = EvalFunc.with_options(gpu=config.gpu)().eval_single_sample_modal.remote(ref_arch_src, custom_cuda, config.verbose, gpu_arch_mapping[config.gpu])
-        
+
         print(f"Evaluation result for level {config.level} problem {config.problem_id}:\n{kernel_exec_result}")
-        
+
         if config.log:
             with open(os.path.join(config.logdir, f"eval_result_level_{config.level}_problem_{config.problem_id}.txt"), "a") as f:
                 f.write(f"Problem Name: {problem_name}\n")

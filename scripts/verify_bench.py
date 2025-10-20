@@ -1,5 +1,5 @@
 """
-This script tests the correctness of models in KernelBench by generating random inputs 
+This script tests the correctness of models in KernelBench by generating random inputs
 and random initialization. It compares the output of the original model against itself.
 It ensures that the test is well-formed and there are no sources of non-determinism in the test.
 
@@ -16,7 +16,7 @@ import os
 import importlib.util
 
 """
-Test all the reference architectures compiles 
+Test all the reference architectures compiles
 and reproduce the same results when run against itself
 """
 

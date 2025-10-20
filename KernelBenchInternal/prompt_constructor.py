@@ -1,5 +1,5 @@
 import os
-from src.utils import read_file
+from KernelBenchInternal.utils import read_file
 
 
 """

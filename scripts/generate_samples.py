@@ -8,10 +8,10 @@ from dataclasses import dataclass
 
 from datasets import load_dataset
 
-from src.dataset import construct_kernelbench_dataset
-from src.eval import eval_kernel_against_ref
-from src.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template, prompt_generate_prompt_with_hardware_info_from_template
-from src.utils import extract_first_code, set_gpu_arch, read_file, create_inference_server_from_presets, maybe_multithread
+from KernelBenchInternal.dataset import construct_kernelbench_dataset
+from KernelBenchInternal.eval import eval_kernel_against_ref
+from KernelBenchInternal.prompt_constructor import prompt_generate_custom_cuda_from_prompt_template, prompt_generate_prompt_with_hardware_info_from_template
+from KernelBenchInternal.utils import extract_first_code, set_gpu_arch, read_file, create_inference_server_from_presets, maybe_multithread
 
 """
 Batch Generate Samples for Particular Level

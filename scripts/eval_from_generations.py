@@ -14,9 +14,9 @@ import multiprocessing as mp
 
 from datasets import load_dataset
 
-from src.dataset import construct_kernelbench_dataset
-from src.eval import build_compile_cache, eval_kernel_against_ref, KernelExecResult, check_metadata_serializable_all_types
-from src.utils import set_gpu_arch, read_file
+from KernelBenchInternal.dataset import construct_kernelbench_dataset
+from KernelBenchInternal.eval import build_compile_cache, eval_kernel_against_ref, KernelExecResult, check_metadata_serializable_all_types
+from KernelBenchInternal.utils import set_gpu_arch, read_file
 
 """
 Batch Evaluation from Existing Generations
@@ -70,18 +70,18 @@ class EvalConfig(Config):
         self.num_perf_trials = 100
         self.timeout = 180 # in seconds
         self.measure_performance = True
-        
+
         # Eval Flow setting
         # To speedup evaluation, you can start building the kernel on CPU on disk as cache
         self.build_cache = False
         self.num_cpu_workers = 20 # number of parallel process to to parallelize the build on CPUs
-        
+
         # Directory to build kernels for evaluation
         self.kernel_eval_build_dir = os.path.join(REPO_TOP_DIR, "cache")
 
         # number of GPUs to do batch evaluation
         self.num_gpu_devices = 1
-        
+
 
     def __repr__(self):
         return f"EvalConfig({self.to_dict()})"
@@ -103,7 +103,7 @@ def fetch_ref_arch_from_problem_id(dataset, problem_id: int, dataset_src: str) -
         curr_problem_row = dataset.filter(lambda x: x["problem_id"] == problem_id, num_proc=1, desc=None)
         ref_arch_src = curr_problem_row["code"][0]
         problem_name = curr_problem_row["name"][0]
-    
+
     elif dataset_src == "local":
         problem_idx_in_dataset = problem_id - 1 # due to dataset list being 0-indexed locally
         ref_arch_path = dataset[problem_idx_in_dataset]
@@ -115,7 +115,7 @@ def fetch_ref_arch_from_problem_id(dataset, problem_id: int, dataset_src: str) -
         # Extract problem number from problem name (e.g. "1" from "1_Square_matrix_multiplication_.py")
     problem_number = int(problem_name.split("_")[0])
     assert problem_number == problem_id, f"Problem number in filename ({problem_number}) does not match config problem_id ({problem_id})"
-    
+
     return ref_arch_src
 
 
@@ -124,7 +124,7 @@ def fetch_kernel_from_disk(run_dir: str, level: int, problem_id: int, sample_id:
     Fetch kernel file from disk (stored in runs/{run_name})
     """
     kernel_path = os.path.join(run_dir, f"level_{level}_problem_{problem_id}_sample_{sample_id}_kernel.py")
-    
+
     if os.path.exists(kernel_path):
         return read_file(kernel_path)
     else:
@@ -150,12 +150,12 @@ def evaluate_single_sample(work_args: WorkArgs, configs: EvalConfig, dataset, ru
 
     build_dir = os.path.join(configs.kernel_eval_build_dir, configs.run_name, f"{problem_id}", f"{sample_id}")
 
-    try: 
+    try:
         eval_result = eval_kernel_against_ref(
             original_model_src=ref_arch_src,
             custom_model_src=kernel_src,
             measure_performance=configs.measure_performance,
-            verbose=configs.verbose,    
+            verbose=configs.verbose,
             num_correct_trials=configs.num_correct_trials,
             num_perf_trials=configs.num_perf_trials,
             build_dir=build_dir,
@@ -182,10 +182,10 @@ def evaluate_single_sample(work_args: WorkArgs, configs: EvalConfig, dataset, ru
                         "hardware": torch.cuda.get_device_name(device=device),
                         "device": str(device)
                         } # for debugging
-            eval_result = KernelExecResult(compiled=False, correctness=False, 
+            eval_result = KernelExecResult(compiled=False, correctness=False,
                                                 metadata=metadata)
             return eval_result
-    
+
 def cuda_single_eval_wrapper(curr_work: WorkArgs, configs: dict, dataset, run_dir: str):
     """
     Wrapper to handle timeout and keyboard interrupt
@@ -273,7 +273,7 @@ def batch_eval(
                     async_results.append(
                         pool.apply_async(evaluate_single_sample, work_arg)
                     )
-            
+
                 # Collect results with a batch timeout
                 results = []
                 batch_timeout = config.timeout
@@ -285,13 +285,13 @@ def batch_eval(
                         remaining_time = max(0, batch_timeout - elapsed_time)
                         result = async_result.get(timeout=remaining_time)
                         results.append((problem_id, sample_id, result))
-                        
+
                     except mp.TimeoutError:
                         print(
                             f"[WARNING] Evaluation TIMED OUT for Problem ID: {problem_id}, Sample ID: {sample_id}"
                         )
                         results.append((problem_id, sample_id, None))
-                    
+
                         remove_cache_dir(config.kernel_eval_build_dir, config.run_name, problem_id, sample_id)
                     except Exception as e:
                         print(
@@ -344,7 +344,7 @@ def add_to_eval_results_file(problem_id: int, sample_id: int, eval_result: Kerne
             eval_results = json.load(f)
     else:
         eval_results = {}
-    
+
     # Add new result
     eval_results[str(problem_id)] = {
         # assume 1 sample for now, will think about how to do this better for more samples
@@ -355,11 +355,11 @@ def add_to_eval_results_file(problem_id: int, sample_id: int, eval_result: Kerne
         'runtime': eval_result.runtime,
         'runtime_stats': eval_result.runtime_stats,
     }
-    
+
     # Write updated results back to file
     if not os.path.exists(eval_file_path):
         os.makedirs(os.path.dirname(eval_file_path), exist_ok=True)
-        
+
     with open(eval_file_path, "w") as f:
         json.dump(eval_results, f)
 
@@ -380,7 +380,7 @@ def main(config: EvalConfig):
     Store Eval Results in specified eval results file
     """
     print(f"Starting Batch Eval with config: {config}")
-    
+
     # Check if CUDA is available
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA device not available. Evaluation requires GPU.")
@@ -394,7 +394,7 @@ def main(config: EvalConfig):
         curr_level_dataset = dataset[f"level_{config.level}"]
     elif config.dataset_src == "local":
         curr_level_dataset = construct_kernelbench_dataset(config.level)
-    
+
     num_problems_in_level = len(curr_level_dataset)
 
     if config.subset == (None, None):
@@ -433,4 +433,4 @@ def main(config: EvalConfig):
 
 if __name__ == "__main__":
     main()
-  
+

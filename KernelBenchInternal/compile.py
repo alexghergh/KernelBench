@@ -5,8 +5,8 @@ import time
 from tqdm import tqdm
 
 import shutil
-from src.eval import build_compile_cache
-from src import utils as utils
+from KernelBenchInternal.eval import build_compile_cache
+from KernelBenchInternal import utils as utils
 import torch
 import os
 import multiprocessing as mp
@@ -18,7 +18,7 @@ This module contains the logic for compiling and caching the kernels
 on CPU in parallel so you can speedup the evaluation process
 
 The cache build directory must match the ones you use during evaluation phase
-""" 
+"""
 
 @dataclass
 class WorkArgs:
@@ -28,10 +28,10 @@ class WorkArgs:
 
 def compile_single_sample(work_args: WorkArgs, config: dict) -> tuple[bool, str]:
 
-    problem_id = work_args.problem_id 
+    problem_id = work_args.problem_id
     sample_id = work_args.sample_id
     verbose = config["verbose"]
-    
+
     utils.set_gpu_arch(config["gpu_arch"])
 
     build_dir = os.path.join(config["kernel_eval_build_dir"], config["run_name"], str(problem_id), str(sample_id))
@@ -48,14 +48,14 @@ def compile_single_sample(work_args: WorkArgs, config: dict) -> tuple[bool, str]
 
     try:
         compiled_and_cached, stdout_content, error_msg = build_compile_cache(custom_model_src=kernel_src,
-                                                       verbose=verbose, 
+                                                       verbose=verbose,
                                                        build_dir=build_dir)
 
         return compiled_and_cached, stdout_content, error_msg
     except Exception as e:
         print(f"[WARNING] Last level catch on {sample_id}: Some issue while compiling and attempting to cache for kernel: {e} ")
         return None, str(e), str(e)
-    
+
 def remove_cache_dir(config, problem_id, sample_id):
     """
     Remove the cached folder for sample compilation so it can start a clean build next time
@@ -96,10 +96,10 @@ def batch_compile(total_work: list[tuple[int, int]], config: dict):
                 async_result = pool.apply_async(compile_single_sample, args=work_arg)
                 async_results.append(async_result)
                 start_times[id(async_result)] = time.time()
-            
+
             results = []
             pending_tasks = list(enumerate(async_results))
-            
+
             with tqdm(total=len(work_args), desc="Compile & Cache Progress") as pbar:
                 while pending_tasks:
                     remaining_tasks = []
@@ -109,14 +109,14 @@ def batch_compile(total_work: list[tuple[int, int]], config: dict):
                             if async_result.ready():
                                 try:
                                     compiled, stdout_content, error_msg = async_result.get(timeout=1)  # Short timeout for completed tasks
-                                    
+
                                     print(f"[Status] Compilation {compiled} for problem {problem_id} sample {sample_id}")
                                     results.append((i, compiled))
 
                                     if not compiled:
                                         # Remove the cached folder for this timed out sample so it can start a clean build next time                                        problem_id, sample_id = total_work[i]
                                         remove_cache_dir(config, problem_id, sample_id)
-                                        
+
                                     pbar.update(1)
                                 except Exception as e:
                                     problem_id, sample_id = total_work[i]
@@ -131,7 +131,7 @@ def batch_compile(total_work: list[tuple[int, int]], config: dict):
                                 if time.time() - start_times[id(async_result)] > config["timeout"]:
                                     problem_id, sample_id = total_work[i]
                                     print(f"\n[TIME OUT] Task timed out for Problem ID: {problem_id}, Sample ID: {sample_id}")
-                                    
+
                                     problem_id, sample_id = total_work[i]
                                     remove_cache_dir(config, problem_id, sample_id)
 
@@ -142,22 +142,22 @@ def batch_compile(total_work: list[tuple[int, int]], config: dict):
                                     start_times[id(new_async_result)] = time.time()
                                     remaining_tasks.append((i, new_async_result))
                                 else:
-                                    # keep going 
+                                    # keep going
                                     remaining_tasks.append((i, async_result))
 
                         except Exception as e:
                             problem_id, sample_id = total_work[i]
                             print(f"\n[ERROR] Unexpected error for Problem ID: {problem_id}, Sample ID: {sample_id}: {str(e)}")
-                            
+
                             remove_cache_dir(config, problem_id, sample_id)
-                            
+
                             results.append((i, None))
-                            
+
                             pbar.update(1)
-                    
+
                     pending_tasks = remaining_tasks
                     time.sleep(0.1)  # Prevent busy waiting
-            
+
             # Sort results back to original order
             sorted_results = [r for _, r in sorted(results, key=lambda x: x[0])]
             return sorted_results

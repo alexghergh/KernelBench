@@ -1,6 +1,6 @@
-import pytest # noqa    
- 
-from src.utils import extract_first_code, extract_code_blocks, extract_last_code
+import pytest # noqa
+
+from KernelBenchInternal.utils import extract_first_code, extract_code_blocks, extract_last_code
 
 def check_code_assertions(code: str, expected_code: str):
     """
@@ -31,11 +31,11 @@ def test_extract_last_code():
     }
     ```
 
-    and some other code block 
+    and some other code block
     ```python
     def hello():
         print("Hello")
-    ``` 
+    ```
     and it says more stuff afterwards"""
     code = extract_last_code(example_output, ["python", "cpp"])
     check_code_assertions(code, "def hello():\n    print(\"Hello\")")
@@ -50,13 +50,13 @@ def test_extract_first_code():
         print("Hello")
     ```
     and it says more stuff afterwards"""
-    
+
     code = extract_first_code(example_output, ["python", "cpp"])
     check_code_assertions(code, "def hello():\n    print(\"Hello\")")
 
     # Test with no code block
     text = "Some code here"
-    code = extract_first_code(text, ["python", "cpp"]) 
+    code = extract_first_code(text, ["python", "cpp"])
     check_code_assertions(code, "")
 
     # Test with empty code block
@@ -77,7 +77,7 @@ def test_extract_first_code():
     }
     ```
     """
-    # NOTE: is this a problem 
+    # NOTE: is this a problem
     code = extract_first_code(text, ["python", "cpp"])
     check_code_assertions(code, "def hello():\n    print(\"Hello\")")
 # Test python hash
@@ -104,7 +104,7 @@ def test_extract_code_blocks():
     }
     ```
     """
-    # NOTE: is this a problem 
+    # NOTE: is this a problem
     code = extract_code_blocks(text, ["python", "cpp"])
     check_code_assertions(code, "def hello():\n    print(\"Hello\") \n int main() { \n return 0; \n }")
 

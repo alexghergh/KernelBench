@@ -1,14 +1,14 @@
 import torch
 import numpy as np
-from src.eval import (
+from KernelBenchInternal.eval import (
     load_original_model_and_inputs,
     time_execution_with_cuda_event,
     get_timing_stats,
     set_seed,
     fetch_ref_arch_from_problem_id,
 )
-from src.dataset import construct_problem_dataset_from_problem_dir
-from src.utils import read_file
+from KernelBenchInternal.dataset import construct_problem_dataset_from_problem_dir
+from KernelBenchInternal.utils import read_file
 import os
 import json
 from tqdm import tqdm
@@ -29,7 +29,7 @@ Using various configurations
 Torch Compile with various modes
 https://pytorch.org/docs/main/generated/torch.compile.html
 - torch.compile: backend="inductor", mode="default" (this is usually what happens when you do torch.compile(model))
-- torch.compile: backend="inductor", mode="reduce-overhead" 
+- torch.compile: backend="inductor", mode="reduce-overhead"
 - torch.compile: backend="inductor", mode="max-autotune"
 - torch.compile: backend="inductor", mode="max-autotune-no-cudagraphs"
 
@@ -65,7 +65,7 @@ image = (
     .apt_install("git",
                 "gcc-10",
                 "g++-10",
-                "clang" # note i skip a step 
+                "clang" # note i skip a step
                 )
     .pip_install(  # required to build flash-attn
         "anthropic",
@@ -99,7 +99,7 @@ def write_batch_to_json(entries_to_write: list, f_path: str):
     if os.path.exists(f_path):
         with open(f_path, 'r') as f_r:
             existing_data = json.load(f_r)
-            
+
     # Add new entries
     for (level, problem, entry) in entries_to_write:
         # Initialize nested structure if it doesn't exist
@@ -114,10 +114,10 @@ def write_batch_to_json(entries_to_write: list, f_path: str):
     # Write back combined data
     with open(f_path, "w") as f_w:
         json.dump(existing_data, f_w, indent=4)
-    
+
     print(f"[INFO] Wrote {len(entries_to_write)} entries to {f_path}")
 
-def fetch_ref_arch_from_dataset(dataset: list[str], 
+def fetch_ref_arch_from_dataset(dataset: list[str],
                                 problem_id: int) -> tuple[str, str, str]:
     """
     Fetch the reference architecture from the problem directory
@@ -129,14 +129,14 @@ def fetch_ref_arch_from_dataset(dataset: list[str],
         ref_arch_src: str, the source code of the reference architecture
     """
     ref_arch_path = None
-    
+
     for file in dataset:
         if file.split("/")[-1].split("_")[0] == str(problem_id):
             ref_arch_path = file
             break
     if ref_arch_path is None:
         raise ValueError(f"No reference architecture found for problem_id {problem_id}")
-    
+
     ref_arch_src = read_file(ref_arch_path)
 
     ref_arch_name = ref_arch_path.split("/")[-1]
@@ -149,10 +149,10 @@ class EvalFunc:
     def measure_program_time(
             self,
             ref_arch_name: str,
-            ref_arch_src: str, 
+            ref_arch_src: str,
             num_trials: int = 100,
             use_torch_compile: bool = False,
-            torch_compile_backend: str="inductor", 
+            torch_compile_backend: str="inductor",
             torch_compile_options: str="default",
             device: torch.device = torch.cuda.current_device() if torch.cuda.is_available() else None,
             verbose: bool = False,
@@ -182,13 +182,13 @@ class EvalFunc:
 
                 # Initialize PyTorch model, use this for eager mode execution
                 model = Model(*init_inputs)
-                
+
                 if use_torch_compile:
                     print(f"Using torch.compile to compile model {ref_arch_name} with {torch_compile_backend} backend and {torch_compile_options} mode")
                     model = torch.compile(model, backend=torch_compile_backend, mode=torch_compile_options)
                 else:
                     print(f"Using PyTorch Eager Execution on {ref_arch_name}")
-                
+
                 model = model.cuda(device=device)
                 torch.cuda.synchronize(device=device)
                 elapsed_times = time_execution_with_cuda_event(
@@ -198,7 +198,7 @@ class EvalFunc:
 
                 if verbose:
                     print(f"{ref_arch_name} {runtime_stats}")
-                
+
                 return runtime_stats
         except Exception as e:
             print(f"[Eval] Error in Measuring Performance: {e}")
@@ -207,12 +207,12 @@ def measure_program_time_wrapper(*args, **kwargs):
     with app.run():
         return EvalFunc.with_options(gpu=gpu)().measure_program_time.remote(*args, **kwargs)
 
-def record_baseline_times(use_torch_compile: bool = False, 
-                          torch_compile_backend: str="inductor", 
+def record_baseline_times(use_torch_compile: bool = False,
+                          torch_compile_backend: str="inductor",
                           torch_compile_options: str="default",
                           file_name: str="baseline_time.json"):
     """
-    Generate baseline time for KernelBench, 
+    Generate baseline time for KernelBench,
     configure profiler options for PyTorch
     save to specified file
     """
@@ -240,7 +240,7 @@ def record_baseline_times(use_torch_compile: bool = False,
                             torch_compile_backend,
                             torch_compile_options,
                             torch.device(f"cuda:0"),
-                            False # do not print  
+                            False # do not print
                         )
                         for i, (p_id, ref_arch_path, ref_arch_name, ref_arch_src) in enumerate(curr_work_batch)
                     ]
@@ -262,13 +262,13 @@ def record_baseline_times(use_torch_compile: bool = False,
                             remaining_time = max(0, batch_timeout - elapsed_time)
                             result = async_result.get(timeout=remaining_time)
                             json_results.append((f"level{level}", ref_arch_name, result))
-                            
+
                         except mp.TimeoutError:
                             print(
                                 f"[WARNING] Evaluation TIMED OUT for Problem ID: {problem_id}"
                             )
                             json_results.append((f"level{level}", ref_arch_name, None))
-            
+
                         except Exception as e:
                             print(
                                 f"[ERROR] Evaluation FAILED for Problem ID: {problem_id}: {str(e)}"
@@ -286,7 +286,7 @@ if __name__ == "__main__":
     # DEBUG and simple testing
     # test_measure_particular_program(2, 28)
     gpu = "A10G"
-    # Replace this with whatever hardware you are running on 
+    # Replace this with whatever hardware you are running on
     hardware_name = f"{gpu}_modal"
     print(f"Generating baseline time for {hardware_name}")
     # input(f"You are about to start recording baseline time for {hardware_name}, press Enter to continue...")
@@ -296,29 +296,29 @@ if __name__ == "__main__":
     #     input(f"Directory {hardware_name} already exists, Are you sure you want to overwrite? Enter to continue...")
 
     # 1. Record Torch Eager
-    record_baseline_times(use_torch_compile=False, 
+    record_baseline_times(use_torch_compile=False,
                         torch_compile_backend=None,
-                        torch_compile_options=None, 
+                        torch_compile_options=None,
                         file_name=f"{hardware_name}/baseline_time_torch.json")
-    
-    record_baseline_times(use_torch_compile=True, 
+
+    record_baseline_times(use_torch_compile=True,
                         torch_compile_backend="inductor",
-                        torch_compile_options="default", 
+                        torch_compile_options="default",
                         file_name=f"{hardware_name}/baseline_time_torch_compile_inductor_default.json")
-    
+
     # 2. Record Torch Compile using Inductor
     # for torch_compile_mode in ["default", "reduce-overhead", "max-autotune", "max-autotune-no-cudagraphs"]:
-    #     record_baseline_times(use_torch_compile=True, 
+    #     record_baseline_times(use_torch_compile=True,
     #                           torch_compile_backend="inductor",
-    #                           torch_compile_options=torch_compile_mode, 
+    #                           torch_compile_options=torch_compile_mode,
     #                           file_name=f"{hardware_name}/baseline_time_torch_compile_inductor_{torch_compile_mode}.json")
- 
+
     # 3. Record Torch Compile using cudagraphs
-    # record_baseline_times(use_torch_compile=True, 
+    # record_baseline_times(use_torch_compile=True,
     #                       torch_compile_backend="cudagraphs",
-    #                       torch_compile_options=None, 
+    #                       torch_compile_options=None,
     #                       file_name=f"{hardware_name}/baseline_time_torch_compile_cudagraphs.json")
-    
+
 
 
 
@@ -364,7 +364,7 @@ def get_time_old(level_num, problem_id, num_trials=100, torch_compile=False):
                 for x in init_inputs
             ]
             model = Model(*init_inputs)
-            
+
             if torch_compile:
                 model = torch.compile(model)
                 print("Compiled model Done")

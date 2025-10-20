@@ -17,8 +17,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 device = "cuda:0"
 
 
-from src.utils import read_file
-from src.eval import (
+from KernelBenchInternal.utils import read_file
+from KernelBenchInternal.eval import (
     load_custom_model,
     load_original_model_and_inputs,
     time_execution_with_cuda_event,
@@ -26,7 +26,7 @@ from src.eval import (
     set_seed,
 )
 
-def fetch_ref_arch_from_dataset(dataset: list[str], 
+def fetch_ref_arch_from_dataset(dataset: list[str],
                                 problem_id: int) -> tuple[str, str, str]:
     """
     Fetch the reference architecture from the problem directory
@@ -38,14 +38,14 @@ def fetch_ref_arch_from_dataset(dataset: list[str],
         ref_arch_src: str, the source code of the reference architecture
     """
     ref_arch_path = None
-    
+
     for file in dataset:
         if file.split("/")[-1].split("_")[0] == str(problem_id):
             ref_arch_path = file
             break
     if ref_arch_path is None:
         raise ValueError(f"No reference architecture found for problem_id {problem_id}")
-    
+
     ref_arch_src = read_file(ref_arch_path)
 
     ref_arch_name = ref_arch_path.split("/")[-1]
@@ -84,11 +84,11 @@ def run_profile_and_save_trace(dataset: list[str], problem_id: int, num_trials=1
             x.cuda(device=device) if isinstance(x, torch.Tensor) else x
             for x in init_inputs
         ]
-        
+
         # Create base model
         model = Model(*init_inputs)
         model = model.cuda(device=device)
-        
+
         # Profile non-compiled model
         with profile(
             activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
@@ -100,7 +100,7 @@ def run_profile_and_save_trace(dataset: list[str], problem_id: int, num_trials=1
                     prof.step()
         print(f"\nProfiling results for non-compiled model:")
         print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
-        
+
         # Profile compiled model
         model_compiled = torch.compile(model)
         with profile(
@@ -153,18 +153,18 @@ def get_torch_compile_triton(level_num, problem_id):
             log_file = f"results/triton_code/level{level_num}_problem_{problem_id}_triton.log"
             os.makedirs(os.path.dirname(log_file), exist_ok=True)
             logging.basicConfig(filename=log_file, level=logging.DEBUG)
-            # TODO: Figure out a way to save to a file 
+            # TODO: Figure out a way to save to a file
 
             torch._logging.set_logs(output_code=True)
 
             # Call torch compile
             model =torch.compile(model, backend="inductor")
 
-            # reduce overhead -> 
+            # reduce overhead ->
             # model = torch.compile(model, mode="")
-            
+
             model = model.cuda(device=device)
-            
+
 
             torch.cuda.synchronize(device=device)
             elapsed_times = time_execution_with_cuda_event(

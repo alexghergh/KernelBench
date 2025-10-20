@@ -3,8 +3,8 @@ import subprocess
 import os
 import ninja
 
-from src.utils import set_gpu_arch
-from src.eval import build_compile_cache_with_capturing
+from KernelBenchInternal.utils import set_gpu_arch
+from KernelBenchInternal.eval import build_compile_cache_with_capturing
 
 ################################################################################
 # Test for checking if we can capture nvcc errors

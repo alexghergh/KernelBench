@@ -1,6 +1,6 @@
 import pytest
-from src.score import *
-import math
+from KernelBenchInternal.score import *
+imporKernelBenchInternalath
 
 '''
 Usage:

@@ -16,18 +16,18 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 device = "cuda:0"
 
 
-from src.utils import read_file
-from src.eval import (
+from KernelBenchInternal.utils import read_file
+from KernelBenchInternal.eval import (
     load_custom_model,
     load_original_model_and_inputs,
     set_seed,
 )
 
 
-def get_torch_profiler_info(ref_arch_src: str, 
-                            kernel_src: str, 
-                            build_dir: str, 
-                            device: torch.device, 
+def get_torch_profiler_info(ref_arch_src: str,
+                            kernel_src: str,
+                            build_dir: str,
+                            device: torch.device,
                             num_trials: int = 100,
                             table_row_limit: int = 10,
                             seed_num: int = 42)->str:
@@ -45,9 +45,9 @@ def get_torch_profiler_info(ref_arch_src: str,
 
 
     Notes about profiling:
-        - We do not set p.toggle_collection_dynamic explicitly, 
+        - We do not set p.toggle_collection_dynamic explicitly,
         - We only collect CUDA activity (ProfilerActivity.CUDA), as we are only interested in the kernel
-        
+
     """
 
     assert torch.cuda.is_available(), "CUDA is not available, cannot run Torch Profiler"
@@ -68,7 +68,7 @@ def get_torch_profiler_info(ref_arch_src: str,
         x.cuda(device=device) if isinstance(x, torch.Tensor) else x
         for x in init_inputs
     ]
-    
+
     ModelNew = load_custom_model(kernel_src, context, build_dir)
     # construct the new model with init inputs
     model = ModelNew(*init_inputs)
@@ -91,15 +91,15 @@ def get_torch_profiler_info(ref_arch_src: str,
             schedule=profiling_scheduler,
         ) as prof:
             for _ in range(num_trials):
-            
+
                 output = model(*inputs)
                 prof.step()
 
-        profiler_output = prof.key_averages().table(sort_by='cuda_time_total', 
+        profiler_output = prof.key_averages().table(sort_by='cuda_time_total',
                                                     row_limit=table_row_limit)
-        
+
     return profiler_output
-    
+
 def __main__():
     # run_profile(dataset, problem_id, num_trials=10)
 
@@ -118,7 +118,7 @@ def __main__():
         seed_num=42,
         table_row_limit=10
     )
-    
+
     print(profile_result)
     print(f"Profiler result could be parsed as a string of length {len(profile_result)}")
 
