@@ -17,6 +17,7 @@ REPO_TOP_PATH = os.path.abspath(
     )
 )
 KERNEL_BENCH_PATH = os.path.join(REPO_TOP_PATH, "KernelBench")
+ARCH_EXAMPLES_PATH = os.path.join(REPO_TOP_PATH, "KernelBenchInternal", "prompts")
 
 
 def get_arch_definition_from_file(arch_path):
@@ -92,46 +93,46 @@ def prompt_generate_custom_cuda_fewshot_and_template(ref_arch_src: str, shots: l
 
     # k = 1
     example_add = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_ex_add.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_ex_add.py")
     )
     example_add_new = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_new_ex_add.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_new_ex_add.py")
     )
     example_add_desc = "This given architecture is for a pointwise addition: "
 
     # k = 2
     example_fuse_gelu = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_ex_fuse_gelu.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_ex_fuse_gelu.py")
     )
     example_fuse_gelu_new = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_new_ex_fuse_gelu.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_new_ex_fuse_gelu.py")
     )
     example_fuse_gelu_desc = "This given architecture is for a fused gelu: "
 
     # k = 3 (DEPRECATED)
     example_mnist2 = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_ex_mnist2.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_ex_mnist2.py")
     )
     example_mnist2_new = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_new_ex_mnist2.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_new_ex_mnist2.py")
     )
     exmaple_mnist2_desc = "This given architecture is for a model with fused convolutions and relus: "
 
     # k = 4
     example_tiled_matmul = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_ex_tiled_matmul.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_ex_tiled_matmul.py")
     )
     example_tiled_matmul_new = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_new_ex_tiled_matmul.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_new_ex_tiled_matmul.py")
     )
     example_tiled_matmul_desc = "This given architecture is for a model with tiled matrix multiplication: "
 
     # k = 5
     example_flash_attn = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_ex_flash_attn.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_ex_flash_attn.py")
     )
     example_flash_attn_new = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_new_ex_flash_attn.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_new_ex_flash_attn.py")
     )
     example_flash_attn_desc = "This given architecture is for a model with simple io-aware implementation of attention, also known as flash attention: "
 
@@ -201,37 +202,37 @@ Let's think step by step.\n
 
     # k = 2
     example_fuse_gelu = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_ex_fuse_gelu.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_ex_fuse_gelu.py")
     )
     example_fuse_gelu_cot = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/cot/model_cot_fuse_gelu.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "cot/model_cot_fuse_gelu.py")
     )
     example_fuse_gelu_new = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_new_ex_fuse_gelu.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_new_ex_fuse_gelu.py")
     )
     example_fuse_gelu_desc = "This given architecture is for a fused gelu: "
 
     # k = 3
     example_mnist2 = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_ex_mnist2.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_ex_mnist2.py")
     )
     example_mnist2_cot = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/cot/model_cot_mnist2.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "cot/model_cot_mnist2.py")
     )
     example_mnist2_new = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_new_ex_mnist2.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_new_ex_mnist2.py")
     )
     exmaple_mnist2_desc = "This given architecture is for a model with fused convolutions and relus: "
 
     # k = 4
     example_tiled_matmul = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_ex_tiled_matmul.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_ex_tiled_matmul.py")
     )
     example_tiled_matmul_cot = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/cot/model_cot_tiled_matmul.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "cot/model_cot_tiled_matmul.py")
     )
     example_tiled_matmul_new = read_file(
-        os.path.join(REPO_TOP_PATH, "src/prompts/few_shot/model_new_ex_tiled_matmul.py")
+        os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "few_shot/model_new_ex_tiled_matmul.py")
     )
     example_tiled_matmul_desc = "This given architecture is for a model with tiled matrix multiplication: "
 
@@ -295,10 +296,10 @@ def prompt_generate_custom_cuda_from_file_one_example(ref_arch_src, example_ind=
     # These are strictly defined for now
 
     example_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/prompts/model_ex_{example_ind}.py"
+        REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "model_ex_{example_ind}.py"
     )
     example_new_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/prompts/model_new_ex_{example_ind}.py"
+        REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "model_new_ex_{example_ind}.py"
     )
 
     if not os.path.exists(example_arch_path):
@@ -326,10 +327,10 @@ def prompt_generate_custom_cuda_from_prompt_template(ref_arch_src: str) -> str:
 
     # path to prompt template, show an example of Model (torch specifications) and ModelNew (torch + custom CUDA kernels)
     example_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/prompts/model_ex_add.py"
+        REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "model_ex_add.py"
     )
     example_new_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/prompts/model_new_ex_add.py"
+        REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "model_new_ex_add.py"
     )
 
     if not os.path.exists(example_arch_path):
@@ -358,13 +359,13 @@ def prompt_generate_prompt_with_hardware_info_from_template(ref_arch_src: str, g
 
     # path to prompt template, show an example of Model (torch specifications) and ModelNew (torch + custom CUDA kernels)
     example_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/prompts/model_ex_add.py"
+        REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "model_ex_add.py"
     )
     example_new_arch_path = os.path.join(
-        REPO_TOP_PATH, f"src/prompts/model_new_ex_add.py"
+        REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "model_new_ex_add.py"
     )
 
-    gpu_spec_file_path = os.path.join(REPO_TOP_PATH, f"src/prompts/hardware/gpu_specs.py")
+    gpu_spec_file_path = os.path.join(REPO_TOP_PATH, ARCH_EXAMPLES_PATH, "hardware/gpu_specs.py")
 
     example_arch = read_file(example_arch_path)
     example_new_arch = read_file(example_new_arch_path)
