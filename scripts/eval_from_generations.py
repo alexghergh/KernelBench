@@ -6,7 +6,7 @@ from pydra import REQUIRED, Config
 
 import json
 from tqdm import tqdm
-from src import eval, utils, compile
+from KernelBenchInternal import eval, utils, compile
 import torch
 import os
 import multiprocessing as mp
