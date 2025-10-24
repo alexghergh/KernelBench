@@ -1,20 +1,17 @@
-"""
-Helpers for Evaluations
-"""
-
 import requests
+import os
+import subprocess
+import json
+from io import StringIO
+from contextlib import redirect_stdout, redirect_stderr
+
 import torch
 import torch.nn as nn
-import os, subprocess
-from pydantic import BaseModel
 import numpy as np
-import random
-import json
-from contextlib import redirect_stdout, redirect_stderr
-from io import StringIO
-import sys
+from pydantic import BaseModel
 
 from . import utils
+
 
 REPO_TOP_PATH = os.path.abspath(
     os.path.join(
@@ -204,7 +201,7 @@ def build_compile_cache_legacy(
     except Exception as e:
         print(f"[Compilation] Failed to compile custom CUDA kernel. Unable to cache, \nError: {e}")
         return False, stdout_buffer.getvalue(), str(e)
-    
+
     return True, stdout_buffer.getvalue(), None
 
 
@@ -254,17 +251,18 @@ def build_compile_cache_with_capturing(
     build_dir: os.PathLike = None
 ) -> tuple[int, str, str]:
     """
-    Write a temporary python file to compile the custom model on CPU
-    Captures the return code, stdout, and stderr
-    This works for capturing, build_compile_cache does not
+    Write a temporary python file to compile the custom model on CPU.
+    Captures the return code, stdout, and stderr.
+    This works for capturing, build_compile_cache does not.
     """
     if build_dir:
-        # Add import at the start of the source code
+        # add import at the start of the source code
         custom_model_src = (
             "import os\n" f"os.environ['TORCH_EXTENSIONS_DIR'] = '{build_dir}'\n"
         ) + custom_model_src
 
     kernel_hash = hash(custom_model_src)
+
     # tmp is a temp python file we write to for compilation
     tmp = os.path.join(build_dir, f"tmp_{kernel_hash}.py")
     os.makedirs(os.path.dirname(tmp), exist_ok=True)
@@ -272,19 +270,18 @@ def build_compile_cache_with_capturing(
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(custom_model_src)
 
-    # Execute the temporary Python file and capture output
+    # execute the temporary Python file and capture output
     process = subprocess.Popen(['python', tmp], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     returncode = process.returncode
 
-    # Clean up temporary file
+    # clean up temporary file
     os.remove(tmp)
-
 
     if verbose:
         print("[CPU Precompile] return code: ", returncode)
         print("[CPU Precompile] stdout: \n", stdout.decode('utf-8'))
-        print("[CPU Precompile] stderr: \n", stderr.decode('utf-8')) 
+        print("[CPU Precompile] stderr: \n", stderr.decode('utf-8'))
 
     return returncode, stdout.decode('utf-8'), stderr.decode('utf-8')
 
