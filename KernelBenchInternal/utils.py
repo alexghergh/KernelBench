@@ -500,7 +500,7 @@ def extract_first_code(output_string: str, code_language_types: list[str]) -> st
     trimmed = output_string.strip()
 
     # Extracting the first occurrence of content between backticks
-    code_match = re.search(r"```(.*?)```", trimmed, re.DOTALL)
+    code_match = re.search(r"```\w+\n(.*?)```", trimmed, re.DOTALL)
 
     if code_match:
         # Strip leading and trailing whitespace from the extracted code
@@ -525,7 +525,7 @@ def extract_last_code(output_string: str, code_language_types: list[str]) -> str
     trimmed = output_string.strip()
 
     # Find all matches of code blocks
-    code_matches = re.finditer(r"```(.*?)```", trimmed, re.DOTALL)
+    code_matches = re.finditer(r"```\w+\n(.*?)```", trimmed, re.DOTALL)
 
     # Get the last match by converting to list and taking the last element
     matches_list = list(code_matches)
@@ -546,7 +546,7 @@ def extract_code_blocks(text, code_language_types: list[str]) -> str:
     '''
     Extract all code blocks from text, combine them to return as a single string
     '''
-    pattern = r'```.*?\n(.*?)```'
+    pattern = r'```\w+\n(.*?)```'
     matches = re.findall(pattern, text, re.DOTALL)
 
     # Combine all code blocks and remove language type headers
