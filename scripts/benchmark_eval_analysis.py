@@ -105,7 +105,7 @@ def analyze_greedy_eval(run_name, runs_dir, hardware, baseline, level):
 
 
     # Calculate speedup metrics
-    from src.score import geometric_mean_speed_ratio_correct_only, geometric_mean_speed_ratio_correct_and_faster_only, fastp
+    from KernelBenchInternal.score import geometric_mean_speed_ratio_correct_only, geometric_mean_speed_ratio_correct_and_faster_only, fastp
     import numpy as np
 
     # Extract the speedup values
