@@ -9,7 +9,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from dotenv import load_dotenv
 load_dotenv()  # Load variables from .env early so query_server can see them
 
-from openai.types.shared.reasoning_effort import ReasoningEffort
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
@@ -489,7 +488,10 @@ def query_server(
                                              use_reasoning_model,
                                              reasoning_effort,
                                              budget_tokens)
+
     # note, token_usage structure depends on the individual inference provider
+    if len(outputs) == 1:
+        outputs = outputs[0]
     return outputs, token_usage
 
 
