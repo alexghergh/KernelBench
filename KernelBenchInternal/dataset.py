@@ -71,7 +71,7 @@ KERNELBENCH_LEVEL_3_DATASET = construct_kernelbench_dataset(level=3)
 
 def get_kernelbench_subset(
     level: int, num_subset_problems: int = 10, random_seed: int = 42
-) -> tuple[list[str], list[int]]:
+) -> list[str]:
     """
     Get a random subset of problems from the KernelBench dataset
     """
