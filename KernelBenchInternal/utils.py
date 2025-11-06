@@ -1,39 +1,24 @@
-########################
-# Utils Functions
-########################
-
-import multiprocessing
-from dotenv import load_dotenv
-load_dotenv()  # Load variables from .env early so query_server can see them
-import subprocess
 import re
-import random
-import tempfile
-from pathlib import Path
-import re
-import math
 import os
-import json
-from tqdm import tqdm
-
-# API clients
-from together import Together
-from openai import OpenAI
-import google.generativeai as genai
-import anthropic
-
-# from datasets import load_dataset
-import numpy as np
-from contextlib import contextmanager
-from collections import defaultdict
+import multiprocessing
 import time
-import shutil
 import concurrent
 from functools import cache
-from transformers import AutoTokenizer
-import hashlib
-
 from concurrent.futures import ProcessPoolExecutor, as_completed
+
+from dotenv import load_dotenv
+load_dotenv()  # Load variables from .env early so query_server can see them
+
+from openai.types.shared.reasoning_effort import ReasoningEffort
+from tqdm import tqdm
+from transformers import AutoTokenizer
+
+# API clients
+import anthropic
+from openai import OpenAI
+from google import genai
+from together import Together
+
 
 # Define API key access
 TOGETHER_KEY = os.environ.get("TOGETHER_API_KEY")
@@ -72,9 +57,11 @@ def is_safe_to_send_to_deepseek(prompt):
     else:
         return len(tokenizer.apply_chat_template(prompt)) < TOO_LONG_FOR_DEEPSEEK
 
+
 def set_gpu_arch(arch_list: list[str]):
     """
-    Set env variable for torch cuda arch list to build kernels for specified architectures
+    Set env variable for torch cuda arch list to build kernels for specified
+    architectures.
     """
     valid_archs = ["Maxwell", "Pascal", "Volta", "Turing", "Ampere", "Hopper", "Ada"]
     for arch in arch_list:
@@ -83,46 +70,352 @@ def set_gpu_arch(arch_list: list[str]):
 
     os.environ["TORCH_CUDA_ARCH_LIST"] = ";".join(arch_list)
 
+
+def _query_openai(client: OpenAI,
+                  model: str,
+                  system_prompt: str,
+                  prompt: str,
+                  num_completions: int,
+                  temperature: float,
+                  max_tokens: int,
+                  top_p: float,
+                  top_k: int,
+                  use_reasoning_model: bool,
+                  reasoning_effort: str,
+                  budget_tokens: int,
+                  ):
+    if use_reasoning_model:
+        assert reasoning_effort in ['low', 'medium', 'high'], (
+            "Reasoning effort can only be 'low', 'medium' or 'high'"
+        )
+        print(f"Using OpenAI reasoning model {model} with reasoning effort {reasoning_effort}")
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                { "role": "user", "content": prompt },
+            ],
+            reasoning_effort=reasoning_effort,
+        )
+    else:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": prompt },
+            ],
+            stream=False,
+            temperature=temperature,
+            n=num_completions,
+            max_tokens=max_tokens,
+            top_p=top_p,
+        )
+    outputs = [choice.message.content for choice in response.choices]
+    token_usage = response.usage
+
+    return outputs, token_usage
+
+
+def _query_anthropic(client: anthropic.Anthropic,
+                     model: str,
+                     system_prompt: str,
+                     prompt: str,
+                     num_completions: int,
+                     temperature: float,
+                     max_tokens: int,
+                     top_p: float,
+                     top_k: int,
+                     use_reasoning_model: bool,
+                     reasoning_effort: str,
+                     budget_tokens: int,
+                     ):
+    if use_reasoning_model:
+        response = client.with_options(timeout=10000000).messages.create(
+            model=model,
+            system=system_prompt,
+            messages=[
+                { "role": "user", "content": prompt },
+            ],
+            max_tokens=max_tokens,
+            # Claude thinking requires budget_tokens for thinking (reasoning)
+            thinking={
+                "type": "enabled",
+                "budget_tokens": (budget_tokens if budget_tokens != 0 else max_tokens // 2),
+            },
+        )
+    else:
+        # Use standard endpoint for normal models
+        response = client.with_options(timeout=10000000).messages.create(
+            model=model,
+            system=system_prompt,
+            messages=[
+                { "role": "user", "content": prompt },
+            ],
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            max_tokens=max_tokens,
+        )
+    outputs = [choice.text for choice in response.content if choice.type == 'text']
+    token_usage = response.usage
+
+    return outputs, token_usage
+
+
+def _query_google(client: genai.Client,
+                  model: str,
+                  system_prompt: str,
+                  prompt: str,
+                  num_completions: int,
+                  temperature: float,
+                  max_tokens: int,
+                  top_p: float,
+                  top_k: int,
+                  use_reasoning_model: bool,
+                  reasoning_effort: str,
+                  budget_tokens: int,
+                  ):
+    if use_reasoning_model:
+        assert 'gemini-2.5-' in model, "Only Gemini 2.5 models can use reasoning"
+
+    # this can use either reasoning or no-reasoning normally, depending on the
+    # model
+    response = client.models.generate_content(
+        model=model,
+        contents=prompt,
+        config=genai.types.GenerateContentConfig(
+            max_output_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+        ),
+    )
+    outputs = response.text
+    token_usage = response.usage_metadata
+
+    return outputs, token_usage
+
+
+def _query_deepseek(client: OpenAI,
+                    model: str,
+                    system_prompt: str,
+                    prompt: str,
+                    num_completions: int,
+                    temperature: float,
+                    max_tokens: int,
+                    top_p: float,
+                    top_k: int,
+                    use_reasoning_model: bool,
+                    reasoning_effort: str,
+                    budget_tokens: int,
+                    ):
+    if model in ["deepseek-chat", "deepseek-coder"]:
+        # regular deepseek model
+        response = client.chat.completions.create(
+                model=model,
+                messages=[
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": prompt },
+            ],
+            stream=False,
+            temperature=temperature,
+            n=1,
+            max_tokens=max_tokens,
+            top_p=top_p,
+        )
+    else:
+        # deepseek reasoner
+        assert use_reasoning_model and model == "deepseek-reasoner", (
+            "Only deepseek-reasoner is supported with reasoning enabled"
+        )
+        response = client.chat.completions.create(
+                model=model,
+            messages=[
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": prompt },
+            ],
+            stream=False,
+            n=num_completions, # beam search
+            max_tokens=max_tokens,
+        )
+    outputs = [choice.message.content for choice in response.choices]
+    token_usage = response.usage
+
+    return outputs, token_usage
+
+
+def _query_together(client: OpenAI,
+                    model: str,
+                    system_prompt: str,
+                    prompt: str,
+                    num_completions: int,
+                    temperature: float,
+                    max_tokens: int,
+                    top_p: float,
+                    top_k: int,
+                    use_reasoning_model: bool,
+                    reasoning_effort: str,
+                    budget_tokens: int,
+                    ):
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": prompt },
+        ],
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        max_tokens=max_tokens,
+        stop=["<|eot_id|>", "<|eom_id|>"],
+        stream=False,
+    )
+    outputs = [choice.message.content for choice in response.choices]
+    token_usage = response.usage
+
+    return outputs, token_usage
+
+
+def _query_sambanova(client: OpenAI,
+                    model: str,
+                    system_prompt: str,
+                    prompt: str,
+                    num_completions: int,
+                    temperature: float,
+                    max_tokens: int,
+                    top_p: float,
+                    top_k: int,
+                    use_reasoning_model: bool,
+                     reasoning_effort: str,
+                    budget_tokens: int,
+                    ):
+    response = client.chat.completions.create(
+        model=model,
+        max_tokens=max_tokens,
+        messages=[
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": prompt },
+        ],
+        temperature=temperature,
+        top_p=top_p,
+    )
+    outputs = [choice.message.content for choice in response.choices]
+    token_usage = response.usage
+
+    return outputs, token_usage
+
+
+def _query_fireworks(client: OpenAI,
+                     model: str,
+                     system_prompt: str,
+                     prompt: str,
+                     num_completions: int,
+                     temperature: float,
+                     max_tokens: int,
+                     top_p: float,
+                     top_k: float,
+                     use_reasoning_model: bool,
+                     reasoning_effort: str,
+                     budget_tokens: int,
+                     ):
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": prompt },
+        ],
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
+        stop=["<|eot_id|>", "<|eom_id|>"],
+        stream=False,
+    )
+    outputs = [choice.message.content for choice in response.choices]
+    token_usage = response.usage
+
+    return outputs, token_usage
+
+
+def _query_generic(client: OpenAI,
+                   model: str,
+                   system_prompt: str,
+                   prompt: str,
+                   num_completions: int,
+                   temperature: float,
+                   max_tokens: int,
+                   top_p: float,
+                   top_k: float,
+                   use_reasoning_model: bool,
+                   reasoning_effort: str,
+                   budget_tokens: int,
+                   ):
+    if type(prompt) is str:
+        response = client.completions.create(
+            model=model,
+            prompt=prompt,
+            n=num_completions,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+        )
+        outputs = [choice.text for choice in response.choices]
+    else:
+        response = client.chat.completions.create(
+            model=model,
+            messages=prompt,
+            n=num_completions,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+        )
+        outputs = [choice.message.content for choice in response.choices]
+    token_usage = response.usage
+
+    return outputs, token_usage
+
+
 def query_server(
-    prompt: str | list[dict],  # string if normal prompt, list of dicts if chat prompt,
-    system_prompt: str = "You are a helpful assistant",  # only used for chat prompts
+    prompt: str | list[dict], # string if normal prompt, list of dicts to assemble if chat prompt
+    system_prompt: str = "You are a helpful assistant", # only used for chat prompts
     temperature: float = 0.0,
     top_p: float = 1.0, # nucleus sampling
     top_k: int = 50,
-    max_tokens: int = 128,  # max output tokens to generate
-    num_completions: int = 1,
-    server_port: int = 30000,  # only for local server hosted on SGLang
-    server_address: str = "localhost",
+    num_completions: int = 1, # beam search
+    max_tokens: int = 128, # max output tokens to generate
     server_type: str = "sglang",
-    model_name: str = "default",  # specify model type
+    server_address: str = "localhost",
+    server_port: int = 30000, # only for local server hosted on SGLang
+    model_name: str = "default", # specify model type
 
-    # for reasoning models
-    # (alexgh)
-    #is_reasoning_model: bool = False, # indiactor of using reasoning models
-    is_reasoning_model: bool = True, # indiactor of using reasoning models
+    # reasoning models
+    use_reasoning_model: bool = True, # whether to use reasoning version
     budget_tokens: int = 0, # for claude thinking
-    reasoning_effort: str = 'high', # gpt-5
+    reasoning_effort: str = 'high', # for gpt-5
 ):
     """
     Query various sort of LLM inference API providers
     Supports:
     - OpenAI
+    - Anthropic
+    - Gemini / Google AI Studio
     - Deepseek
     - Together
     - Sambanova
-    - Anthropic
-    - Gemini / Google AI Studio
-    - Fireworks (OpenAI compatbility)
+    - Fireworks (OpenAI compatible)
     - SGLang (Local Server)
     """
-    # Select model and client based on arguments
+    # create server based on arguments
     match server_type:
-        case "sglang":
-            url = f"http://{server_address}:{server_port}"
-            client = OpenAI(
-                api_key=SGLANG_KEY, base_url=f"{url}/v1", timeout=None, max_retries=0
-            )
-            model = "default"
+        case "openai":
+            client = OpenAI(api_key=OPENAI_KEY)
+
+        case "anthropic":
+            client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+
+        case "google":
+            client = genai.Client(api_key=GEMINI_KEY)
+
         case "deepseek":
             client = OpenAI(
                 api_key=DEEPSEEK_KEY,
@@ -130,10 +423,21 @@ def query_server(
                 timeout=10000000,
                 max_retries=3,
             )
-            model = model_name
-            assert model in ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"], "Only support deepseek-chat or deepseek-coder for now"
+            assert model_name in ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"], (
+                "Only support deepseek-chat, deepseek-coder, deepseek-reasoner for now"
+            )
             if not is_safe_to_send_to_deepseek(prompt):
                 raise RuntimeError("Prompt is too long for DeepSeek")
+
+        case "together":
+            client = Together(api_key=TOGETHER_KEY)
+
+        case "sambanova":
+            client = OpenAI(
+                api_key=SAMBANOVA_API_KEY,
+                base_url="https://api.sambanova.ai/v1"
+            )
+
         case "fireworks":
             client = OpenAI(
                 api_key=FIREWORKS_API_KEY,
@@ -141,232 +445,52 @@ def query_server(
                 timeout=10000000,
                 max_retries=3,
             )
-            model = model_name
 
-        case "anthropic":
-            client = anthropic.Anthropic(
-                api_key=ANTHROPIC_KEY,
+        case "sglang":
+            url = f"http://{server_address}:{server_port}"
+            client = OpenAI(
+                api_key=SGLANG_KEY, base_url=f"{url}/v1", timeout=None, max_retries=0
             )
-            model = model_name
-        case "google":
-            genai.configure(api_key=GEMINI_KEY)
-            model = model_name
-        case "together":
-            client = Together(api_key=TOGETHER_KEY)
-            model = model_name
-        case "sambanova":
-            client = OpenAI(api_key=SAMBANOVA_API_KEY, base_url="https://api.sambanova.ai/v1")
-            model = model_name
 
-        case "openai":
-            client = OpenAI(api_key=OPENAI_KEY)
-            model = model_name
         case _:
             raise NotImplementedError
 
-    if server_type != "google":
-        assert client is not None, "Client is not set, cannot proceed to generations"
-    else:
-        print(
-            f"Querying {server_type} {model} with temp {temperature} max tokens {max_tokens}"
-        )
-    # Logic to query the LLM
-    if server_type == "anthropic":
-        assert type(prompt) == str
+    assert client is not None, "Client is not set, cannot proceed to generations"
+    print(f"Querying {server_type}, model {model_name} with temp {temperature}, and max tokens {max_tokens}")
 
-        if is_reasoning_model:
-            # Use beta endpoint with thinking enabled for reasoning models
-            response = client.with_options(timeout=10000000).messages.create(
-                model=model,
-                system=system_prompt,
-                messages=[
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=max_tokens,
-                # Claude thinking requires budget_tokens for thinking (reasoning)
-                thinking={"type": "enabled", "budget_tokens": max_tokens // 2},
-                #betas=["output-128k-2025-02-19"],
-            )
-        else:
-            # Use standard endpoint for normal models
-            response = client.with_options(timeout=10000000).messages.create(
-                model=model,
-                system=system_prompt,
-                messages=[
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=temperature,
-                # top_p=top_p,
-                top_k=top_k,
-                max_tokens=max_tokens,
-            )
-        # (alexgh)
-        outputs = []
-        for block in response.content:
-            if block.type == 'thinking':
-                #print(">>>> Anthropic thinking tokens: ", block.thinking)
-                pass
-            elif block.type == 'text':
-                outputs.append(block.text)
-
-        # outputs = [choice.text for choice in response.content if not hasattr(choice, 'thinking') or not choice.thinking]
-
+    # query the LLM server
+    if server_type == "openai":
+        query_server_func = _query_openai
+    elif server_type == "anthropic":
+        query_server_func = _query_anthropic
     elif server_type == "google":
-        # assert model_name == "gemini-1.5-flash-002", "Only test this for now"
-
-        generation_config = {
-            "temperature": temperature,
-            "top_p": top_p,
-            "top_k": top_k,
-            "max_output_tokens": max_tokens,
-            "response_mime_type": "text/plain",
-        }
-
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=system_prompt,
-            generation_config=generation_config,
-        )
-
-        response = model.generate_content(prompt)
-
-        return response.text
-
+        query_server_func = _query_google
     elif server_type == "deepseek":
-
-        if model in ["deepseek-chat", "deepseek-coder"]:
-            # regular deepseek model
-            response = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-                stream=False,
-                temperature=temperature,
-                n=num_completions,
-                max_tokens=max_tokens,
-                top_p=top_p,
-            )
-
-        else: # deepseek reasoner
-            assert is_reasoning_model, "Only support deepseek-reasoner for now"
-            assert model == "deepseek-reasoner", "Only support deepseek-reasoner for now"
-            response = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-                stream=False,
-                n=num_completions,
-                max_tokens=max_tokens,
-                # do not use temperature or top_p
-            )
-        outputs = [choice.message.content for choice in response.choices]
-    elif server_type == "openai":
-        if is_reasoning_model:
-            # assert "o1" in model or "o3" in model, "Only support o1 and o3 for now"
-            # print(f"Using OpenAI reasoning model: {model} with reasoning effort {reasoning_effort}")
-            print(f"Using OpenAI reasoning model: {model} with reasoning effort {reasoning_effort}")
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "user", "content": prompt},
-                ],
-                reasoning_effort=reasoning_effort,
-            )
-        else:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-                stream=False,
-                temperature=temperature,
-                n=num_completions,
-                max_tokens=max_tokens,
-                top_p=top_p,
-            )
-        # print(">>> OPENAI FULL OUTPUT: ")
-        # print(json.dumps(response.choices[0], indent=2, ensure_ascii=False))
-        # print("<<<<< AND END")
-        outputs = [choice.message.content for choice in response.choices]
+        query_server_func = _query_deepseek
     elif server_type == "together":
-        response = client.chat.completions.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            top_p=top_p,
-            top_k=top_k,
-            # repetition_penalty=1,
-            stop=["<|eot_id|>", "<|eom_id|>"],
-            # truncate=32256,
-            stream=False,
-        )
-        outputs = [choice.message.content for choice in response.choices]
-    elif server_type == "fireworks":
-        response = client.chat.completions.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            # top_p=top_p,
-            # top_k=top_k,
-            # repetition_penalty=1,
-            stop=["<|eot_id|>", "<|eom_id|>"],
-            # truncate=32256,
-            stream=False,
-        )
-        outputs = [choice.message.content for choice in response.choices]
+        query_server_func = _query_together
     elif server_type == "sambanova":
-        response = client.chat.completions.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            top_p=top_p,
-        )
-        outputs = [choice.message.content for choice in response.choices]
-    # for all other kinds of servers, use standard API
+        query_server_func = _query_sambanova
+    elif server_type == "fireworks":
+        query_server_func = _query_fireworks
     else:
-        if type(prompt) == str:
-            response = client.completions.create(
-                model=model,
-                prompt=prompt,
-                temperature=temperature,
-                n=num_completions,
-                max_tokens=max_tokens,
-                top_p=top_p,
-            )
-            outputs = [choice.text for choice in response.choices]
-        else:
-            response = client.chat.completions.create(
-                model=model,
-                messages=prompt,
-                temperature=temperature,
-                n=num_completions,
-                max_tokens=max_tokens,
-                top_p=top_p,
-            )
-            outputs = [choice.message.content for choice in response.choices]
+        # for all other kinds of servers, use standard API
+        query_server_func = _query_generic
 
-    # output processing
-    if len(outputs) == 1:
-        return outputs[0]
-    else:
-        return outputs
+    outputs, token_usage = query_server_func(client,
+                                             model_name,
+                                             system_prompt,
+                                             prompt,
+                                             num_completions,
+                                             temperature,
+                                             max_tokens,
+                                             top_p,
+                                             top_k,
+                                             use_reasoning_model,
+                                             reasoning_effort,
+                                             budget_tokens)
+    # note, token_usage structure depends on the individual inference provider
+    return outputs, token_usage
 
 
 # a list of presets for API server configs
@@ -449,11 +573,6 @@ def create_inference_server_from_presets(server_type: str = None,
             )
 
     return _query_llm
-
-"""
-Model output processing
-#  TODO: add unit tests
-"""
 
 
 def read_file(file_path) -> str:
@@ -542,6 +661,7 @@ def extract_last_code(output_string: str, code_language_types: list[str]) -> str
 
     return None
 
+
 def extract_code_blocks(text, code_language_types: list[str]) -> str:
     '''
     Extract all code blocks from text, combine them to return as a single string
@@ -560,6 +680,7 @@ def extract_code_blocks(text, code_language_types: list[str]) -> str:
         combined_code.append(code)
 
     return " \n ".join(combined_code) if combined_code else ""
+
 
 ################################################################################
 # Scale up experiments in parallel
@@ -638,6 +759,7 @@ def maybe_multiprocess_cuda(
                     continue
     return output_data
 
+
 # src/random_inputs.py
 import os, torch, itertools
 from torch.distributions import Normal, Uniform, Laplace, Exponential, LogNormal
@@ -702,9 +824,11 @@ def rand_mix(*size, dist: str = "random", device=None, dtype=None, requires_grad
         t.requires_grad_(True)
     return t
 
+
 def rand_mix_like(tensor: torch.Tensor, dist: str = "random", **kwargs):
     """rand_mix variant that infers shape from *tensor*."""
     return rand_mix(*tensor.shape, dist=dist, **kwargs)
+
 
 # Register convenience aliases under torch namespace (does not shadow existing fns)
 setattr(torch, "rand_mix", rand_mix)
