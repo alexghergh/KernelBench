@@ -354,7 +354,6 @@ def _query_generic(client: OpenAI,
             max_tokens=max_tokens,
             temperature=temperature,
             top_p=top_p,
-            top_k=top_k,
         )
         outputs = [choice.text for choice in response.choices]
     else:
@@ -365,7 +364,6 @@ def _query_generic(client: OpenAI,
             max_tokens=max_tokens,
             temperature=temperature,
             top_p=top_p,
-            top_k=top_k,
         )
         outputs = [choice.message.content for choice in response.choices]
     token_usage = response.usage
