@@ -85,9 +85,9 @@ def get_kernelbench_subset(
     subset = sorted([full_dataset[i] for i in subset_indices])
     return subset
 
-KERNELBENCH_LEVEL_1_SUBSET_DATASET = get_kernelbench_subset(level=1)
-KERNELBENCH_LEVEL_2_SUBSET_DATASET = get_kernelbench_subset(level=2)
-KERNELBENCH_LEVEL_3_SUBSET_DATASET = get_kernelbench_subset(level=3)
+KERNELBENCH_LEVEL_1_RANDOM_SUBSET_DATASET = get_kernelbench_subset(level=1)
+KERNELBENCH_LEVEL_2_RANDOM_SUBSET_DATASET = get_kernelbench_subset(level=2)
+KERNELBENCH_LEVEL_3_RANDOM_SUBSET_DATASET = get_kernelbench_subset(level=3)
 
 ################################################################################
 # Representative subsets of KernelBench
@@ -147,6 +147,10 @@ level3_representative_subset = construct_kernelbench_subset_dataset([
 ])
 
 level3_representative_subset_problem_ids = [1, 5, 8, 11, 20, 33, 38, 43]
+
+KERNELBENCH_LEVEL_1_SUBSET_DATASET = level1_representative_subset
+KERNELBENCH_LEVEL_2_SUBSET_DATASET = level2_representative_subset
+KERNELBENCH_LEVEL_3_SUBSET_DATASET = level3_representative_subset
 
 ################################################################################
 # A dataset class for KernelBench problems
