@@ -95,8 +95,8 @@ KERNELBENCH_LEVEL_3_RANDOM_SUBSET_DATASET = get_kernelbench_subset(level=3)
 # full dataset; problem_ids are 1-indexed (logical index)
 ################################################################################
 
-def construct_kernelbench_subset_dataset(problems: list[str]) -> list[str]:
-    return [os.path.join(KERNEL_BENCH_PATH, problem) for problem in problems]
+def construct_kernelbench_subset_dataset(problems: list[str], level: int) -> list[str]:
+    return [os.path.join(KERNEL_BENCH_PATH, f"level{level}", problem) for problem in problems]
 
 level1_representative_subset = construct_kernelbench_subset_dataset([
     "1_Square_matrix_multiplication_.py",
@@ -117,7 +117,7 @@ level1_representative_subset = construct_kernelbench_subset_dataset([
     "82_conv_depthwise_2D_square_input_square_kernel.py",
     "86_conv_depthwise_separable_2D.py",
     "87_conv_pointwise_2D.py",
-])
+], level=1)
 
 level1_representative_subset_problem_ids = [1, 3, 6, 18, 23, 26, 33, 36, 40, 42, 48, 54, 57, 65, 77, 82, 86, 87]
 
@@ -130,7 +130,7 @@ level2_representative_subset = construct_kernelbench_subset_dataset([
     "28_BMM_InstanceNorm_Sum_ResidualAdd_Multiply.py",
     "33_Gemm_Scale_BatchNorm.py",
     "43_Conv3d_Max_LogSumExp_ReLU.py",
-])
+], level=2)
 
 level2_representative_subset_problem_ids = [1, 2, 8, 18, 23, 28, 33, 43]
 
@@ -144,7 +144,7 @@ level3_representative_subset = construct_kernelbench_subset_dataset([
     "33_VanillaRNN.py",
     "38_LTSMBidirectional.py",
     "43_MinGPTCausalAttention.py",
-])
+], level=3)
 
 level3_representative_subset_problem_ids = [1, 5, 8, 11, 20, 33, 38, 43]
 
