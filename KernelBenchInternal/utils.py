@@ -134,6 +134,7 @@ def _query_anthropic(client: anthropic.Anthropic,
             messages=[
                 { "role": "user", "content": prompt },
             ],
+            temperature=temperature, # as per docs, top_p and top_k shouldn't be set
             max_tokens=max_tokens,
             # Claude thinking requires budget_tokens for thinking (reasoning)
             thinking={
@@ -149,9 +150,7 @@ def _query_anthropic(client: anthropic.Anthropic,
             messages=[
                 { "role": "user", "content": prompt },
             ],
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
+            temperature=temperature, # as per docs, top_p and top_k shouldn't be set
             max_tokens=max_tokens,
         )
     outputs = [choice.text for choice in response.content if choice.type == 'text']
