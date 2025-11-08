@@ -613,9 +613,9 @@ def run_and_check_correctness(
                     avg_diff = torch.mean(torch.abs(output - output_new)).item()
                     metadata.setdefault("max_difference", []).append(f"{max_diff:.6f}")
                     metadata.setdefault("avg_difference", []).append(f"{avg_diff:.6f}")
-                    metadata["correctness_issue"] = "Output mismatch"
+                    metadata["correctness_issue"] = "Output values mismatch"
                     if verbose:
-                        print(f"[FAIL] trial {trial}: Output mismatch")
+                        print(f"[FAIL] trial {trial}: Output values mismatch")
                 else:  # pass
                     pass_count += 1
                     if verbose:
