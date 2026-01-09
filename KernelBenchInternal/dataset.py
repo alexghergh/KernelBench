@@ -152,6 +152,20 @@ KERNELBENCH_LEVEL_1_SUBSET_DATASET = level1_representative_subset
 KERNELBENCH_LEVEL_2_SUBSET_DATASET = level2_representative_subset
 KERNELBENCH_LEVEL_3_SUBSET_DATASET = level3_representative_subset
 
+KERNELBENCH_LEVELS_12_REPRESENTATIVE_DATASET = construct_kernelbench_subset_dataset([
+    "6_Matmul_with_large_K_dimension_.py",
+    "23_Softmax.py",
+    "26_GELU_.py",
+    "40_LayerNorm.py",
+    "42_Max_Pooling_2D.py",
+    "77_conv_transposed_3D_square_input_square_kernel___padded____dilated____strided__.py",
+    "87_conv_pointwise_2D.py",
+], level=1) + construct_kernelbench_subset_dataset([
+    "1_Conv2D_ReLU_BiasAdd.py",
+    "33_Gemm_Scale_BatchNorm.py",
+    "43_Conv3d_Max_LogSumExp_ReLU.py",
+], level=2)
+
 ################################################################################
 # A dataset class for KernelBench problems
 # this is only used by Caesar for now
