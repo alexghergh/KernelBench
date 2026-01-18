@@ -166,6 +166,43 @@ KERNELBENCH_LEVELS_12_REPRESENTATIVE_DATASET = construct_kernelbench_subset_data
     "43_Conv3d_Max_LogSumExp_ReLU.py",
 ], level=2)
 
+# cuda forge subsets, see CudaForge paper, last page
+cudaforge_level1_subset = construct_kernelbench_subset_dataset([
+    "7_Matmul_with_small_K_dimension_.py",
+    "10_3D_tensor_matrix_multiplication.py",
+    "13_Matmul_for_symmetric_matrices.py",
+    "16_Matmul_with_transposed_A.py",
+    "29_Softplus.py",
+    "34_InstanceNorm.py",
+    "35_GroupNorm_.py",
+    "72_conv_transposed_3D_asymmetric_input_asymmetric_kernel___strided_padded_grouped_.py",
+    "89_cumsum.py",
+    "93_masked_cumsum.py",
+], level=1)
+
+cudaforge_level2_subset = construct_kernelbench_subset_dataset([
+    "3_ConvTranspose3d_Sum_LayerNorm_AvgPool_GELU.py",
+    "13_ConvTranspose3d_Mean_Add_Softmax_Tanh_Scaling.py",
+    "17_Conv2d_InstanceNorm_Divide.py",
+    "19_ConvTranspose2d_GELU_GroupNorm.py",
+    "21_Conv2d_Add_Scale_Sigmoid_GroupNorm.py",
+    "26_ConvTranspose3d_Add_HardSwish.py",
+    "28_BMM_InstanceNorm_Sum_ResidualAdd_Multiply.py",
+    "34_ConvTranspose3d_LayerNorm_GELU_Scaling.py",
+    "38_ConvTranspose3d_AvgPool_Clamp_Softmax_Multiply.py",
+    "40_Matmul_Scaling_ResidualAdd.py",
+], level=2)
+
+cudaforge_level3_subset = construct_kernelbench_subset_dataset([
+    "5_AlexNet.py",
+    "18_SqueezeNet.py",
+    "21_EfficientNetMBConv.py",
+    "32_ConvolutionalVisionTransformer.py",
+    "41_GRUBidirectional.py",
+], level=3)
+
+CUDAFORGE_SUBSET = cudaforge_level1_subset + cudaforge_level2_subset + cudaforge_level3_subset
+
 ################################################################################
 # A dataset class for KernelBench problems
 # this is only used by Caesar for now
